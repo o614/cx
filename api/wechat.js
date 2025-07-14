@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 4.1 - Added robust proxy timeout handling for the China region.
+ * Version 4.2 - Updated subscribe reply and added new keyword trigger.
  */
 
 const countryMap = {
@@ -11,7 +11,7 @@ const countryMap = {
     'bo': '玻利维亚', 'ba': '波斯尼亚和黑塞哥维那', 'bw': '博茨瓦纳', 'br': '巴西',
     'vg': '英属维尔京群岛', 'bn': '文莱', 'bg': '保加利亚', 'bf': '布基纳法索',
     'kh': '柬埔寨', 'cm': '喀麦隆', 'ca': '加拿大', 'cv': '佛得角', 'ky': '开曼群岛',
-    'td': '乍得', 'cl': '智利', 'cn': '中国', 'co': '哥伦比亚', 'cr': '哥斯达黎加',
+    'td': '乍得', 'cl': '智利', 'cn': '中国大陆', 'co': '哥伦比亚', 'cr': '哥斯达黎加',
     'hr': '克罗地亚', 'cy': '塞浦路斯', 'cz': '捷克', 'ci': '科特迪瓦',
     'cd': '刚果民主共和国', 'dk': '丹麦', 'dm': '多米尼克', 'do': '多米尼加',
     'ec': '厄瓜多尔', 'eg': '埃及', 'sv': '萨尔瓦多', 'ee': '爱沙尼亚', 'sz': '史瓦帝尼',
@@ -102,7 +102,7 @@ const handleUserMessage = async (req, res) => {
             if (msgType === 'event') {
                 const event = message.Event;
                 if (event === 'subscribe') {
-                    const welcomeMessage = `感谢关注！🎉\n\n您可以直接发送“国家或地区名”+“免费榜”或“付费榜”来查询 App Store 榜单。\n\n例如：\n美国免费榜\n日本付费榜\n\n发送“帮助”可以查看更详细的说明。`;
+                    const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=榜单查询&msgmenuid=榜单查询"> ›榜单查询‹ </a>查看热门榜单\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=订阅查询&msgmenuid=订阅查询"> ›订阅查询‹ </a>了解订阅价格\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=人工服务&msgmenuid=人工服务"> ›人工服务‹ </a>召唤真人客服\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
             } else if (msgType === 'text') {
@@ -112,6 +112,9 @@ const handleUserMessage = async (req, res) => {
                 if (keyword.toLowerCase() === '帮助' || keyword.toLowerCase() === 'help') {
                     const helpText = `欢迎使用 App Store 榜单查询助手！\n\n请输入“国家或地区名”+“免费榜”或“付费榜”进行查询。\n例如：美国免费榜\n\n支持全球所有地区，快来试试吧！`;
                     replyXml = generateTextReply(fromUserName, toUserName, helpText);
+                } else if (keyword === '榜单查询') {
+                    const queryHelpText = `您可以直接发送“国家或地区名”+“免费榜”或“付费榜”来查询 App Store 榜单。\n\n例如：\n美国免费榜\n日本付费榜\n\n发送“帮助”可以查看更详细的说明。`;
+                    replyXml = generateTextReply(fromUserName, toUserName, queryHelpText);
                 } else {
                     const feedUrl = RANK_JSON_FEEDS[keyword];
                     if (feedUrl) {
@@ -149,17 +152,15 @@ const fetchAndParseJson = async (url, title) => {
     requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
   }
 
-  // [MODIFIED] 使用 Promise.race 来确保函数不会因为网络问题而静默失败
   const networkPromise = axios.get(requestUrl, { timeout: 8000 });
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('请求超时，服务器可能正在处理，请稍后重试。')), 9500) // 9.5秒后强制超时
+    setTimeout(() => reject(new Error('请求超时，服务器可能正在处理，请稍后重试。')), 9500)
   );
 
   const response = await Promise.race([networkPromise, timeoutPromise]);
 
   const data = response.data;
   if (!data.feed || !data.feed.results) {
-    // 代理可能会在JSON中返回错误信息，检查这种情况
     if (data.contents && data.contents.includes("error")) {
          throw new Error("代理服务器获取苹果数据失败。");
     }
