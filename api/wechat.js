@@ -1,18 +1,29 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 3.2 - Final version, using professional libraries.
+ * Version 3.3 - Final, simplified version using JSON feed and plain text reply.
  */
-const RANK_RSS_FEEDS = {
-  "美国免费榜": "https://rss.itunes.apple.com/api/v2/us/apps/top-free/10/apps.rss",
-  "美国付费榜": "https://rss.itunes.apple.com/api/v2/us/apps/top-paid/10/apps.rss",
-  "日本免费榜": "https://rss.itunes.apple.com/api/v2/jp/apps/top-free/10/apps.rss",
+
+// ===================================================================================
+// 1. 在这里配置您的 JSON 链接 (从苹果官方工具生成，确保结尾是 .json)
+// ===================================================================================
+const RANK_JSON_FEEDS = {
+  "美国免费榜": "https://rss.marketingtools.apple.com/api/v2/us/apps/top-free/10/apps.json",
+  "美国付费榜": "https://rss.marketingtools.apple.com/api/v2/us/apps/top-paid/10/apps.json",
+  "日本免费榜": "https://rss.marketingtools.apple.com/api/v2/jp/apps/top-free/10/apps.json",
   "帮助": "show_help",
 };
+
+// ===================================================================================
+// 2. Token 将在 Vercel 平台的环境变量中配置
+// ===================================================================================
 const WECHAT_TOKEN = process.env.WECHAT_TOKEN;
+
+// 引入所需模块
 const crypto = require('crypto');
 const axios = require('axios');
-const xml2js = require('xml2js');
+const xml2js = require('xml2js'); // 保留 xml2js 用于解析入站消息和构建回复
 
+// 主处理函数
 module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
@@ -24,7 +35,7 @@ module.exports = async (req, res) => {
     }
   } catch (error) {
     console.error("FATAL ERROR in main handler:", error);
-    res.status(200).send('');
+    res.status(200).send(''); // 出现致命错误时，返回空响应避免微信重试
   }
 };
 
@@ -56,22 +67,26 @@ const handleUserMessage = async (req, res) => {
             fromUserName = message.FromUserName;
             const msgType = message.MsgType;
             const content = message.Content;
+
             if (msgType === 'text' && content) {
-                const feedUrl = RANK_RSS_FEEDS[content.trim()];
-                if (content.trim().toLowerCase() === '帮助' || content.trim().toLowerCase() === 'help') {
-                    const helpText = `欢迎使用 App Store 榜单查询助手！\n\n请输入以下关键词查询榜单：\n- ${Object.keys(RANK_RSS_FEEDS).filter(k => k !== '帮助').join('\n- ')}\n\n榜单数据来自苹果官方。`;
+                const keyword = content.trim();
+                const feedUrl = RANK_JSON_FEEDS[keyword];
+
+                if (keyword.toLowerCase() === '帮助' || keyword.toLowerCase() === 'help') {
+                    const helpText = `欢迎使用 App Store 榜单查询助手！\n\n请输入以下关键词查询榜单：\n- ${Object.keys(RANK_JSON_FEEDS).filter(k => k !== '帮助').join('\n- ')}\n\n榜单数据来自苹果官方。`;
                     replyXml = generateTextReply(fromUserName, toUserName, helpText);
                 } else if (feedUrl) {
-                    const articles = await fetchAndParseRss(feedUrl);
-                    if (!articles || articles.length === 0) throw new Error("从苹果获取的榜单为空或解析失败。");
-                    replyXml = generateNewsReply(fromUserName, toUserName, articles);
+                    const appListText = await fetchAndParseJson(feedUrl, keyword);
+                    replyXml = generateTextReply(fromUserName, toUserName, appListText);
                 } else {
                     const defaultReply = `抱歉，没有找到与“${content}”相关的榜单。\n\n您可以输入“帮助”查看所有支持的关键词。`;
                     replyXml = generateTextReply(fromUserName, toUserName, defaultReply);
                 }
             }
+
             res.setHeader('Content-Type', 'application/xml');
             res.status(200).send(replyXml || '');
+
         } catch (error) {
             console.error("ERROR in handleUserMessage:", error);
             const errorMessage = `抱歉，程序出错了！\n\n[调试信息]\n${error.message}`;
@@ -82,32 +97,40 @@ const handleUserMessage = async (req, res) => {
     });
 };
 
-const fetchAndParseRss = async (url) => {
+/**
+ * [全新] 从 JSON feed 获取并解析 App 列表
+ */
+const fetchAndParseJson = async (url, title) => {
   const response = await axios.get(url);
-  const xmlText = response.data;
-  const parsedResult = await xml2js.parseStringPromise(xmlText, { explicitArray: false });
-  const entries = parsedResult.feed.entry;
-  if (!entries || entries.length === 0) return [];
-  return entries.slice(0, 8).map(entry => {
-    const images = entry['im:image'];
-    const picUrl = Array.isArray(images) ? images.reduce((max, img) => parseInt(img.$.height) > parseInt(max.$.height) ? img : max).label : images.label;
-    return {
-      title: entry.title,
-      description: entry.summary ? entry.summary.label : '暂无摘要',
-      url: entry.id,
-      picUrl: picUrl
-    };
-  }).filter(Boolean);
+  const data = response.data;
+
+  if (!data.feed || !data.feed.results) {
+    throw new Error("从苹果获取的JSON数据格式不正确。");
+  }
+
+  const results = data.feed.results;
+
+  // 构建纯文本回复
+  let replyText = `${title}\n\n`;
+  results.forEach((app, index) => {
+    replyText += `${index + 1}. ${app.name}\n`;
+  });
+  replyText += "\n(数据来自 Apple 官方)";
+
+  return replyText;
 };
 
+// ===================================================================================
+// XML 辅助函数
+// ===================================================================================
 function generateTextReply(toUser, fromUser, content) {
   if (!toUser || !fromUser) return '';
   const builder = new xml2js.Builder({ rootName: 'xml', cdata: true, headless: true });
-  return builder.buildObject({ ToUserName: toUser, FromUserName: fromUser, CreateTime: Math.floor(Date.now() / 1000), MsgType: 'text', Content: content });
-}
-
-function generateNewsReply(toUser, fromUser, articles) {
-  if (!toUser || !fromUser) return '';
-  const builder = new xml2js.Builder({ rootName: 'xml', cdata: true, headless: true });
-  return builder.buildObject({ ToUserName: toUser, FromUserName: fromUser, CreateTime: Math.floor(Date.now() / 1000), MsgType: 'news', ArticleCount: articles.length, Articles: { item: articles } });
+  return builder.buildObject({
+    ToUserName: toUser,
+    FromUserName: fromUser,
+    CreateTime: Math.floor(Date.now() / 1000),
+    MsgType: 'text',
+    Content: content,
+  });
 }
