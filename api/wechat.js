@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 3.5 - Added "pseudo-button" link for better UX.
+ * Version 3.6 - All-in-one reply with names, links, and timestamp.
  */
 
 // ===================================================================================
@@ -74,15 +74,6 @@ const handleUserMessage = async (req, res) => {
                 if (keyword.toLowerCase() === '帮助' || keyword.toLowerCase() === 'help') {
                     const helpText = `欢迎使用 App Store 榜单查询助手！\n\n请输入以下关键词查询榜单：\n- ${Object.keys(RANK_JSON_FEEDS).filter(k => k !== '帮助').join('\n- ')}\n\n榜单数据来自苹果官方。`;
                     replyXml = generateTextReply(fromUserName, toUserName, helpText);
-                } else if (keyword.startsWith('链接 ')) {
-                    const originalKeyword = keyword.substring(3).trim();
-                    const feedUrl = RANK_JSON_FEEDS[originalKeyword];
-                    if (feedUrl) {
-                        const linksText = await fetchAndFormatLinks(feedUrl, originalKeyword);
-                        replyXml = generateTextReply(fromUserName, toUserName, linksText);
-                    } else {
-                        replyXml = generateTextReply(fromUserName, toUserName, `未找到与“${originalKeyword}”相关的榜单链接。`);
-                    }
                 } else {
                     const feedUrl = RANK_JSON_FEEDS[keyword];
                     if (feedUrl) {
@@ -117,30 +108,16 @@ const fetchAndParseJson = async (url, title) => {
   const results = data.feed.results;
   const now = new Date();
   const timestamp = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
-  const linkCommand = `链接 ${title}`;
 
-  let replyText = `${title}\n\n`;
+  // [MODIFIED] 直接生成包含链接的完整列表
+  let replyText = `${title} ${timestamp}\n\n`;
   results.forEach((app, index) => {
-    replyText += `${index + 1}. ${app.name}\n`;
+    replyText += `${index + 1}、${app.name}\n${app.url}\n\n`;
   });
-  // [MODIFIED] 使用 a 标签创建伪按钮
-  replyText += `\n(获取时间: ${timestamp} CST)\n(数据来自 Apple 官方)\n\n» <a href="weixin://bizmsgmenu?msgmenucontent=${encodeURIComponent(linkCommand)}&msgmenuid=${encodeURIComponent(linkCommand)}">点击获取下载地址</a>`;
+  replyText += "数据来自 Apple 官方";
+
   return replyText;
 };
-
-const fetchAndFormatLinks = async (url, title) => {
-    const response = await axios.get(url);
-    const data = response.data;
-    if (!data.feed || !data.feed.results) {
-      throw new Error("从苹果获取的JSON数据格式不正确。");
-    }
-    const results = data.feed.results;
-    let replyText = `${title} - 下载链接\n\n`;
-    results.forEach((app, index) => {
-        replyText += `${index + 1}. ${app.name}\n${app.url}\n\n`;
-    });
-    return replyText;
-}
 
 function generateTextReply(toUser, fromUser, content) {
   if (!toUser || !fromUser) return '';
