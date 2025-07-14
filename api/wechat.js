@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 3.3 - Final, simplified version using JSON feed and plain text reply.
+ * Version 3.5 - Added "pseudo-button" link for better UX.
  */
 
 // ===================================================================================
@@ -21,7 +21,7 @@ const WECHAT_TOKEN = process.env.WECHAT_TOKEN;
 // 引入所需模块
 const crypto = require('crypto');
 const axios = require('axios');
-const xml2js = require('xml2js'); // 保留 xml2js 用于解析入站消息和构建回复
+const xml2js = require('xml2js');
 
 // 主处理函数
 module.exports = async (req, res) => {
@@ -70,17 +70,28 @@ const handleUserMessage = async (req, res) => {
 
             if (msgType === 'text' && content) {
                 const keyword = content.trim();
-                const feedUrl = RANK_JSON_FEEDS[keyword];
 
                 if (keyword.toLowerCase() === '帮助' || keyword.toLowerCase() === 'help') {
                     const helpText = `欢迎使用 App Store 榜单查询助手！\n\n请输入以下关键词查询榜单：\n- ${Object.keys(RANK_JSON_FEEDS).filter(k => k !== '帮助').join('\n- ')}\n\n榜单数据来自苹果官方。`;
                     replyXml = generateTextReply(fromUserName, toUserName, helpText);
-                } else if (feedUrl) {
-                    const appListText = await fetchAndParseJson(feedUrl, keyword);
-                    replyXml = generateTextReply(fromUserName, toUserName, appListText);
+                } else if (keyword.startsWith('链接 ')) {
+                    const originalKeyword = keyword.substring(3).trim();
+                    const feedUrl = RANK_JSON_FEEDS[originalKeyword];
+                    if (feedUrl) {
+                        const linksText = await fetchAndFormatLinks(feedUrl, originalKeyword);
+                        replyXml = generateTextReply(fromUserName, toUserName, linksText);
+                    } else {
+                        replyXml = generateTextReply(fromUserName, toUserName, `未找到与“${originalKeyword}”相关的榜单链接。`);
+                    }
                 } else {
-                    const defaultReply = `抱歉，没有找到与“${content}”相关的榜单。\n\n您可以输入“帮助”查看所有支持的关键词。`;
-                    replyXml = generateTextReply(fromUserName, toUserName, defaultReply);
+                    const feedUrl = RANK_JSON_FEEDS[keyword];
+                    if (feedUrl) {
+                        const appListText = await fetchAndParseJson(feedUrl, keyword);
+                        replyXml = generateTextReply(fromUserName, toUserName, appListText);
+                    } else {
+                        const defaultReply = `抱歉，没有找到与“${keyword}”相关的榜单。\n\n您可以输入“帮助”查看所有支持的关键词。`;
+                        replyXml = generateTextReply(fromUserName, toUserName, defaultReply);
+                    }
                 }
             }
 
@@ -97,32 +108,40 @@ const handleUserMessage = async (req, res) => {
     });
 };
 
-/**
- * [全新] 从 JSON feed 获取并解析 App 列表
- */
 const fetchAndParseJson = async (url, title) => {
   const response = await axios.get(url);
   const data = response.data;
-
   if (!data.feed || !data.feed.results) {
     throw new Error("从苹果获取的JSON数据格式不正确。");
   }
-
   const results = data.feed.results;
+  const now = new Date();
+  const timestamp = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
+  const linkCommand = `链接 ${title}`;
 
-  // 构建纯文本回复
   let replyText = `${title}\n\n`;
   results.forEach((app, index) => {
     replyText += `${index + 1}. ${app.name}\n`;
   });
-  replyText += "\n(数据来自 Apple 官方)";
-
+  // [MODIFIED] 使用 a 标签创建伪按钮
+  replyText += `\n(获取时间: ${timestamp} CST)\n(数据来自 Apple 官方)\n\n» <a href="weixin://bizmsgmenu?msgmenucontent=${encodeURIComponent(linkCommand)}&msgmenuid=${encodeURIComponent(linkCommand)}">点击获取下载地址</a>`;
   return replyText;
 };
 
-// ===================================================================================
-// XML 辅助函数
-// ===================================================================================
+const fetchAndFormatLinks = async (url, title) => {
+    const response = await axios.get(url);
+    const data = response.data;
+    if (!data.feed || !data.feed.results) {
+      throw new Error("从苹果获取的JSON数据格式不正确。");
+    }
+    const results = data.feed.results;
+    let replyText = `${title} - 下载链接\n\n`;
+    results.forEach((app, index) => {
+        replyText += `${index + 1}. ${app.name}\n${app.url}\n\n`;
+    });
+    return replyText;
+}
+
 function generateTextReply(toUser, fromUser, content) {
   if (!toUser || !fromUser) return '';
   const builder = new xml2js.Builder({ rootName: 'xml', cdata: true, headless: true });
