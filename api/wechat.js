@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 3.8 - Added auto-reply for new followers.
+ * Version 3.9 - Added network timeout for requests to Apple's servers.
  */
 
 // ===================================================================================
@@ -14,7 +14,7 @@ const countryMap = {
     'bo': '玻利维亚', 'ba': '波斯尼亚和黑塞哥维那', 'bw': '博茨瓦纳', 'br': '巴西',
     'vg': '英属维尔京群岛', 'bn': '文莱', 'bg': '保加利亚', 'bf': '布基纳法索',
     'kh': '柬埔寨', 'cm': '喀麦隆', 'ca': '加拿大', 'cv': '佛得角', 'ky': '开曼群岛',
-    'td': '乍得', 'cl': '智利', 'cn': '中国大陆', 'co': '哥伦比亚', 'cr': '哥斯达黎加',
+    'td': '乍得', 'cl': '智利', 'cn': '中国', 'co': '哥伦比亚', 'cr': '哥斯达黎加',
     'hr': '克罗地亚', 'cy': '塞浦路斯', 'cz': '捷克', 'ci': '科特迪瓦',
     'cd': '刚果民主共和国', 'dk': '丹麦', 'dm': '多米尼克', 'do': '多米尼加',
     'ec': '厄瓜多尔', 'eg': '埃及', 'sv': '萨尔瓦多', 'ee': '爱沙尼亚', 'sz': '史瓦帝尼',
@@ -99,7 +99,7 @@ const handleUserMessage = async (req, res) => {
     req.on('data', chunk => { requestBody += chunk.toString(); });
     req.on('end', async () => {
         let replyXml = '';
-        let fromUserName, toUserName;
+        let fromUserName, toUserName, keyword;
         try {
             const parsedResult = await xml2js.parseStringPromise(requestBody, { explicitArray: false });
             const message = parsedResult.xml;
@@ -107,18 +107,15 @@ const handleUserMessage = async (req, res) => {
             fromUserName = message.FromUserName;
             const msgType = message.MsgType;
 
-            // [MODIFIED] 增加事件处理逻辑
             if (msgType === 'event') {
                 const event = message.Event;
                 if (event === 'subscribe') {
-                    // 处理关注事件
                     const welcomeMessage = `感谢关注！🎉\n\n您可以直接发送“国家或地区名”+“免费榜”或“付费榜”来查询 App Store 榜单。\n\n例如：\n美国免费榜\n日本付费榜\n\n发送“帮助”可以查看更详细的说明。`;
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
-                // 可以在这里添加 else if 来处理其他事件，如取消关注(unsubscribe)
             } else if (msgType === 'text') {
                 const content = message.Content;
-                const keyword = content.trim();
+                keyword = content.trim();
 
                 if (keyword.toLowerCase() === '帮助' || keyword.toLowerCase() === 'help') {
                     const helpText = `欢迎使用 App Store 榜单查询助手！\n\n请输入“国家或地区名”+“免费榜”或“付费榜”进行查询。\n例如：美国免费榜\n\n支持全球所有地区，快来试试吧！`;
@@ -140,7 +137,11 @@ const handleUserMessage = async (req, res) => {
 
         } catch (error) {
             console.error("ERROR in handleUserMessage:", error);
-            const errorMessage = `抱歉，程序出错了！\n\n[调试信息]\n${error.message}`;
+            let errorMessage = `抱歉，程序出错了！\n\n[调试信息]\n${error.message}`;
+            // [MODIFIED] 增加对网络超时的专门处理
+            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                errorMessage = `抱歉，${keyword || '苹果'}的服务器响应超时，请稍后再试。\n\n这通常是临时网络问题。`;
+            }
             replyXml = generateTextReply(fromUserName, toUserName, errorMessage);
             res.setHeader('Content-Type', 'application/xml');
             res.status(200).send(replyXml);
@@ -149,7 +150,8 @@ const handleUserMessage = async (req, res) => {
 };
 
 const fetchAndParseJson = async (url, title) => {
-  const response = await axios.get(url);
+  // [MODIFIED] 增加5秒的超时设置
+  const response = await axios.get(url, { timeout: 5000 });
   const data = response.data;
   if (!data.feed || !data.feed.results) {
     throw new Error("从苹果获取的JSON数据格式不正确。");
