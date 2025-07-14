@@ -1,7 +1,7 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Fetches App Store rankings and replies to users.
- * Version 3.0 - Final, functional version for Vercel.
+ * Version 3.2 - Final version, rewritten based on a proven working project.
+ * Uses professional libraries 'xml2js' and 'axios' for robust parsing and fetching.
  */
 
 // ===================================================================================
@@ -15,23 +15,28 @@ const RANK_RSS_FEEDS = {
 };
 
 // ===================================================================================
-// 2. 注意：Token 将在 Vercel 平台进行配置，而不是写在这里
+// 2. Token 将在 Vercel 平台的环境变量中配置
 // ===================================================================================
 const WECHAT_TOKEN = process.env.WECHAT_TOKEN;
 
-// 引入Node.js内置的加密模块
+// 引入所需模块
 const crypto = require('crypto');
+const axios = require('axios');
+const xml2js = require('xml2js');
 
 // 主处理函数
 module.exports = async (req, res) => {
-  if (req.method === 'GET') {
-    // 处理微信服务器的验证请求
-    handleWeChatVerification(req, res);
-  } else if (req.method === 'POST') {
-    // 处理用户发送的消息
-    await handleUserMessage(req, res);
-  } else {
-    res.status(200).send('This is a Vercel Serverless Function for WeChat.');
+  try {
+    if (req.method === 'GET') {
+      await handleWeChatVerification(req, res);
+    } else if (req.method === 'POST') {
+      await handleUserMessage(req, res);
+    } else {
+      res.status(200).send('This is a Vercel Serverless Function for WeChat.');
+    }
+  } catch (error) {
+    console.error("FATAL ERROR in main handler:", error);
+    res.status(200).send(''); // 出现致命错误时，返回空响应避免微信重试
   }
 };
 
@@ -66,14 +71,18 @@ const handleUserMessage = async (req, res) => {
     });
 
     req.on('end', async () => {
+        let replyXml = '';
+        let fromUserName, toUserName;
         try {
-            const toUserName = getXmlValueWithRegex(requestBody, 'ToUserName');
-            const fromUserName = getXmlValueWithRegex(requestBody, 'FromUserName');
-            const msgType = getXmlValueWithRegex(requestBody, 'MsgType');
-            const content = getXmlValueWithRegex(requestBody, 'Content');
-            
-            let replyXml = '';
+            // 使用 xml2js 解析微信发来的消息
+            const parsedResult = await xml2js.parseStringPromise(requestBody, { explicitArray: false });
+            const message = parsedResult.xml;
 
+            toUserName = message.ToUserName;
+            fromUserName = message.FromUserName;
+            const msgType = message.MsgType;
+            const content = message.Content;
+            
             if (msgType === 'text' && content) {
                 const feedUrl = RANK_RSS_FEEDS[content.trim()];
             
@@ -82,7 +91,7 @@ const handleUserMessage = async (req, res) => {
                     replyXml = generateTextReply(fromUserName, toUserName, helpText);
                 } else if (feedUrl) {
                     const articles = await fetchAndParseRss(feedUrl);
-                    if (articles.length === 0) throw new Error("从苹果获取的榜单为空。");
+                    if (!articles || articles.length === 0) throw new Error("从苹果获取的榜单为空或解析失败。");
                     replyXml = generateNewsReply(fromUserName, toUserName, articles);
                 } else {
                     const defaultReply = `抱歉，没有找到与“${content}”相关的榜单。\n\n您可以输入“帮助”查看所有支持的关键词。`;
@@ -91,12 +100,15 @@ const handleUserMessage = async (req, res) => {
             }
             
             res.setHeader('Content-Type', 'application/xml');
-            res.status(200).send(replyXml);
+            res.status(200).send(replyXml || '');
 
         } catch (error) {
-            console.error(error);
-            // 如果出错，也返回一个空响应，避免微信重试
-            res.status(200).send('');
+            console.error("ERROR in handleUserMessage:", error);
+            // [错误上报] 将错误信息直接回复给用户
+            const errorMessage = `抱歉，程序出错了！\n\n[调试信息]\n${error.message}`;
+            replyXml = generateTextReply(fromUserName, toUserName, errorMessage);
+            res.setHeader('Content-Type', 'application/xml');
+            res.status(200).send(replyXml);
         }
     });
 };
@@ -105,28 +117,26 @@ const handleUserMessage = async (req, res) => {
  * 从 RSS feed 获取并解析文章列表
  */
 const fetchAndParseRss = async (url) => {
-  // Vercel环境需要使用node-fetch
-  const fetch = (await import('node-fetch')).default;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch RSS feed: ${response.statusText}`);
-  }
-  const xmlText = await response.text();
+  const response = await axios.get(url);
+  const xmlText = response.data;
   
-  const items = xmlText.split('<entry>').slice(1);
-  const articles = items.slice(0, 8).map(itemXml => {
-    const title = getXmlValueWithRegex(itemXml, 'title');
-    const link = getXmlValueWithRegex(itemXml, 'id').replace('http://', 'https://');
-    
-    const images = itemXml.match(/<im:image height="\d+">[\s\S]*?<\/im:image>/g) || [];
-    const imageUrl = images.reduce((maxUrl, currentImg) => {
-        const currentHeight = parseInt((currentImg.match(/height="(\d+)"/) || [0,0])[1], 10);
-        const maxHeight = parseInt((maxUrl.match(/height="(\d+)"/) || [0,0])[1], 10) || 0;
-        return currentHeight > maxHeight ? currentImg : maxUrl;
-    }, '');
-    const picUrl = getXmlValueWithRegex(imageUrl, 'im:image');
+  // 使用 xml2js 解析 RSS feed
+  const parsedResult = await xml2js.parseStringPromise(xmlText, { explicitArray: false });
+  const entries = parsedResult.feed.entry;
 
-    const description = getXmlValueWithRegex(itemXml, 'summary') || '暂无摘要';
+  if (!entries || entries.length === 0) return [];
+
+  const articles = entries.slice(0, 8).map(entry => {
+    const title = entry.title;
+    const link = entry.id;
+    
+    // 苹果的RSS中，im:image是一个数组，需要找到分辨率最高的那个
+    const images = entry['im:image'];
+    const picUrl = Array.isArray(images) 
+        ? images.reduce((max, img) => parseInt(img.$.height) > parseInt(max.$.height) ? img : max).label
+        : images.label;
+
+    const description = entry.summary ? entry.summary.label : '暂无摘要';
 
     return { title, description, url: link, picUrl };
   }).filter(article => article.title && article.url && article.picUrl);
@@ -137,21 +147,27 @@ const fetchAndParseRss = async (url) => {
 // ===================================================================================
 // XML 辅助函数
 // ===================================================================================
-function getXmlValueWithRegex(xml, tag) {
-    const regex = new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?</${tag}>`);
-    const match = xml.match(regex);
-    return match ? match[1] : '';
-}
-
 function generateTextReply(toUser, fromUser, content) {
   if (!toUser || !fromUser) return '';
-  const time = Math.floor(Date.now() / 1000);
-  return `<xml><ToUserName><![CDATA[${toUser}]]></ToUserName><FromUserName><![CDATA[${fromUser}]]></FromUserName><CreateTime>${time}</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[${content}]]></Content></xml>`;
+  const builder = new xml2js.Builder({ rootName: 'xml', cdata: true, headless: true });
+  return builder.buildObject({
+    ToUserName: toUser,
+    FromUserName: fromUser,
+    CreateTime: Math.floor(Date.now() / 1000),
+    MsgType: 'text',
+    Content: content,
+  });
 }
 
 function generateNewsReply(toUser, fromUser, articles) {
   if (!toUser || !fromUser) return '';
-  const time = Math.floor(Date.now() / 1000);
-  const articlesXml = articles.map(article => `<item><Title><![CDATA[${article.title}]]></Title><Description><![CDATA[${article.description}]]></Description><PicUrl><![CDATA[${article.picUrl}]]></PicUrl><Url><![CDATA[${article.url}]]></Url></item>`).join('');
-  return `<xml><ToUserName><![CDATA[${toUser}]]></ToUserName><FromUserName><![CDATA[${fromUser}]]></FromUserName><CreateTime>${time}</CreateTime><MsgType><![CDATA[news]]></MsgType><ArticleCount>${articles.length}</ArticleCount><Articles>${articlesXml}</Articles></xml>`;
+  const builder = new xml2js.Builder({ rootName: 'xml', cdata: true, headless: true });
+  return builder.buildObject({
+    ToUserName: toUser,
+    FromUserName: fromUser,
+    CreateTime: Math.floor(Date.now() / 1000),
+    MsgType: 'news',
+    ArticleCount: articles.length,
+    Articles: { item: articles },
+  });
 }
