@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 4.2 - Updated subscribe reply and added new keyword trigger.
+ * Version 4.4 - Removed "help" keyword functionality.
  */
 
 const countryMap = {
@@ -43,7 +43,7 @@ const countryMap = {
     'vn': '越南', 'ye': '也门', 'zm': '赞比亚', 'zw': '津巴布韦'
 };
 
-const RANK_JSON_FEEDS = { "帮助": "show_help" };
+const RANK_JSON_FEEDS = {}; // [MODIFIED] Removed "帮助"
 for (const code in countryMap) {
     const name = countryMap[code];
     RANK_JSON_FEEDS[`${name}免费榜`] = `https://rss.marketingtools.apple.com/api/v2/${code}/apps/top-free/10/apps.json`;
@@ -109,22 +109,13 @@ const handleUserMessage = async (req, res) => {
                 const content = message.Content;
                 keyword = content.trim();
 
-                if (keyword.toLowerCase() === '帮助' || keyword.toLowerCase() === 'help') {
-                    const helpText = `欢迎使用 App Store 榜单查询助手！\n\n请输入“国家或地区名”+“免费榜”或“付费榜”进行查询。\n例如：美国免费榜\n\n支持全球所有地区，快来试试吧！`;
-                    replyXml = generateTextReply(fromUserName, toUserName, helpText);
-                } else if (keyword === '榜单查询') {
-                    const queryHelpText = `您可以直接发送“国家或地区名”+“免费榜”或“付费榜”来查询 App Store 榜单。\n\n例如：\n美国免费榜\n日本付费榜\n\n发送“帮助”可以查看更详细的说明。`;
-                    replyXml = generateTextReply(fromUserName, toUserName, queryHelpText);
-                } else {
-                    const feedUrl = RANK_JSON_FEEDS[keyword];
-                    if (feedUrl) {
-                        const appListText = await fetchAndParseJson(feedUrl, keyword);
-                        replyXml = generateTextReply(fromUserName, toUserName, appListText);
-                    } else {
-                        const defaultReply = `抱歉，没有找到与“${keyword}”相关的榜单。\n\n您可以输入“帮助”查看使用说明。`;
-                        replyXml = generateTextReply(fromUserName, toUserName, defaultReply);
-                    }
+                // [MODIFIED] Simplified logic, removed "help" keyword
+                const feedUrl = RANK_JSON_FEEDS[keyword];
+                if (feedUrl) {
+                    const appListText = await fetchAndParseJson(feedUrl, keyword);
+                    replyXml = generateTextReply(fromUserName, toUserName, appListText);
                 }
+                // If no matching keyword, replyXml remains empty, resulting in silence.
             }
 
             res.setHeader('Content-Type', 'application/xml');
