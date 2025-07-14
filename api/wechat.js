@@ -1,11 +1,8 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 3.9 - Added network timeout for requests to Apple's servers.
+ * Version 4.1 - Added robust proxy timeout handling for the China region.
  */
 
-// ===================================================================================
-// 1. 在这里配置您的 JSON 链接 (已扩展至全球)
-// ===================================================================================
 const countryMap = {
     'af': '阿富汗', 'al': '阿尔巴尼亚', 'dz': '阿尔及利亚', 'ao': '安哥拉', 'ai': '安圭拉',
     'ag': '安提瓜和巴布达', 'ar': '阿根廷', 'am': '亚美尼亚', 'au': '澳大利亚', 'at': '奥地利',
@@ -14,7 +11,7 @@ const countryMap = {
     'bo': '玻利维亚', 'ba': '波斯尼亚和黑塞哥维那', 'bw': '博茨瓦纳', 'br': '巴西',
     'vg': '英属维尔京群岛', 'bn': '文莱', 'bg': '保加利亚', 'bf': '布基纳法索',
     'kh': '柬埔寨', 'cm': '喀麦隆', 'ca': '加拿大', 'cv': '佛得角', 'ky': '开曼群岛',
-    'td': '乍得', 'cl': '智利', 'cn': '中国', 'co': '哥伦比亚', 'cr': '哥斯达黎加',
+    'td': '乍得', 'cl': '智利', 'cn': '中国大陆', 'co': '哥伦比亚', 'cr': '哥斯达黎加',
     'hr': '克罗地亚', 'cy': '塞浦路斯', 'cz': '捷克', 'ci': '科特迪瓦',
     'cd': '刚果民主共和国', 'dk': '丹麦', 'dm': '多米尼克', 'do': '多米尼加',
     'ec': '厄瓜多尔', 'eg': '埃及', 'sv': '萨尔瓦多', 'ee': '爱沙尼亚', 'sz': '史瓦帝尼',
@@ -53,17 +50,12 @@ for (const code in countryMap) {
     RANK_JSON_FEEDS[`${name}付费榜`] = `https://rss.marketingtools.apple.com/api/v2/${code}/apps/top-paid/10/apps.json`;
 }
 
-// ===================================================================================
-// 2. Token 将在 Vercel 平台的环境变量中配置
-// ===================================================================================
 const WECHAT_TOKEN = process.env.WECHAT_TOKEN;
 
-// 引入所需模块
 const crypto = require('crypto');
 const axios = require('axios');
 const xml2js = require('xml2js');
 
-// 主处理函数
 module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
@@ -75,7 +67,7 @@ module.exports = async (req, res) => {
     }
   } catch (error) {
     console.error("FATAL ERROR in main handler:", error);
-    res.status(200).send(''); // 出现致命错误时，返回空响应避免微信重试
+    res.status(200).send('');
   }
 };
 
@@ -138,8 +130,7 @@ const handleUserMessage = async (req, res) => {
         } catch (error) {
             console.error("ERROR in handleUserMessage:", error);
             let errorMessage = `抱歉，程序出错了！\n\n[调试信息]\n${error.message}`;
-            // [MODIFIED] 增加对网络超时的专门处理
-            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+            if (error.code === 'ECONNABORTED' || error.message.includes('timeout') || error.message.includes('超时')) {
                 errorMessage = `抱歉，${keyword || '苹果'}的服务器响应超时，请稍后再试。\n\n这通常是临时网络问题。`;
             }
             replyXml = generateTextReply(fromUserName, toUserName, errorMessage);
@@ -150,10 +141,28 @@ const handleUserMessage = async (req, res) => {
 };
 
 const fetchAndParseJson = async (url, title) => {
-  // [MODIFIED] 增加5秒的超时设置
-  const response = await axios.get(url, { timeout: 5000 });
+  let requestUrl = url;
+  const isChinaRequest = url.includes('/cn/');
+
+  if (isChinaRequest) {
+    console.log("Using proxy for China region.");
+    requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+  }
+
+  // [MODIFIED] 使用 Promise.race 来确保函数不会因为网络问题而静默失败
+  const networkPromise = axios.get(requestUrl, { timeout: 8000 });
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('请求超时，服务器可能正在处理，请稍后重试。')), 9500) // 9.5秒后强制超时
+  );
+
+  const response = await Promise.race([networkPromise, timeoutPromise]);
+
   const data = response.data;
   if (!data.feed || !data.feed.results) {
+    // 代理可能会在JSON中返回错误信息，检查这种情况
+    if (data.contents && data.contents.includes("error")) {
+         throw new Error("代理服务器获取苹果数据失败。");
+    }
     throw new Error("从苹果获取的JSON数据格式不正确。");
   }
   const results = data.feed.results;
