@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 5.1 - Updated the subscribe reply message only.
+ * Version 5.2 - Unified the command format for price lookup.
  */
 
 const appCountryMap = {
@@ -144,7 +144,6 @@ const handleUserMessage = async (req, res) => {
             if (msgType === 'event') {
                 const event = message.Event;
                 if (event === 'subscribe') {
-                    // [MODIFIED] Updated welcome message
                     const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=应用榜单&msgmenuid=应用榜单"> ›应用榜单‹ </a>查看热门应用\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=音乐榜单&msgmenuid=音乐榜单"> ›音乐榜单‹ </a>查看热门专辑\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=价格查询&msgmenuid=价格查询"> ›价格查询‹ </a>了解软件定价\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=图标获取&msgmenuid=图标获取"> ›图标获取‹ </a>收藏高清图标\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=订阅查询&msgmenuid=订阅查询"> ›订阅查询‹ </a>了解内购价格\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=人工服务&msgmenuid=人工服务"> ›人工服务‹ </a>召唤真人客服\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
@@ -152,17 +151,8 @@ const handleUserMessage = async (req, res) => {
                 const content = message.Content;
                 keyword = content.trim();
 
-                if (keyword.startsWith('查价格 ')) {
-                    const parts = keyword.substring(4).trim().split(' ');
-                    if (parts.length >= 2) {
-                        const appName = parts.slice(0, -1).join(' ');
-                        const countryName = parts[parts.length - 1];
-                        const priceArticle = await lookupAppPrice(appName, countryName);
-                        if (priceArticle) {
-                            replyXml = generateNewsReply(fromUserName, toUserName, [priceArticle]);
-                        }
-                    }
-                } else if (keyword.startsWith('图标 ')) {
+                // [MODIFIED] Unified command logic
+                if (keyword.startsWith('图标 ')) {
                     const appName = keyword.substring(3).trim();
                     if (appName) {
                         const iconReplyText = await lookupAppIcon(appName);
@@ -170,11 +160,22 @@ const handleUserMessage = async (req, res) => {
                             replyXml = generateTextReply(fromUserName, toUserName, iconReplyText);
                         }
                     }
-                } else {
+                } else if (keyword.endsWith('榜') || keyword.endsWith('单曲') || keyword.endsWith('专辑')) {
                     const feedUrl = RANK_JSON_FEEDS[keyword];
                     if (feedUrl) {
                         const appListText = await fetchAndParseJson(feedUrl, keyword);
                         replyXml = generateTextReply(fromUserName, toUserName, appListText);
+                    }
+                } else {
+                    // Assume it's a price lookup: [country] [app name]
+                    const parts = keyword.split(' ');
+                    if (parts.length >= 2) {
+                        const countryName = parts[0];
+                        const appName = parts.slice(1).join(' ');
+                        const priceArticle = await lookupAppPrice(appName, countryName);
+                        if (priceArticle) {
+                            replyXml = generateNewsReply(fromUserName, toUserName, [priceArticle]);
+                        }
                     }
                 }
             }
