@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 5.2 - Unified the command format for price lookup.
+ * Version 5.4 - Reverted to v5.2 base and correctly implemented price lookup.
  */
 
 const appCountryMap = {
@@ -133,7 +133,7 @@ const handleUserMessage = async (req, res) => {
     req.on('data', chunk => { requestBody += chunk.toString(); });
     req.on('end', async () => {
         let replyXml = '';
-        let fromUserName, toUserName, keyword;
+        let fromUserName, toUserName;
         try {
             const parsedResult = await xml2js.parseStringPromise(requestBody, { explicitArray: false });
             const message = parsedResult.xml;
@@ -148,30 +148,26 @@ const handleUserMessage = async (req, res) => {
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
             } else if (msgType === 'text') {
-                const content = message.Content;
-                keyword = content.trim();
+                const content = message.Content.trim();
 
-                // [MODIFIED] Unified command logic
-                if (keyword.startsWith('图标 ')) {
-                    const appName = keyword.substring(3).trim();
+                // [NEW] Clear and robust command routing logic
+                if (content.startsWith('图标 ')) {
+                    const appName = content.substring(3).trim();
                     if (appName) {
                         const iconReplyText = await lookupAppIcon(appName);
                         if (iconReplyText) {
                             replyXml = generateTextReply(fromUserName, toUserName, iconReplyText);
                         }
                     }
-                } else if (keyword.endsWith('榜') || keyword.endsWith('单曲') || keyword.endsWith('专辑')) {
-                    const feedUrl = RANK_JSON_FEEDS[keyword];
-                    if (feedUrl) {
-                        const appListText = await fetchAndParseJson(feedUrl, keyword);
-                        replyXml = generateTextReply(fromUserName, toUserName, appListText);
-                    }
+                } else if (RANK_JSON_FEEDS[content]) {
+                    // This handles all chart lookups
+                    const feedUrl = RANK_JSON_FEEDS[content];
+                    const appListText = await fetchAndParseJson(feedUrl, content);
+                    replyXml = generateTextReply(fromUserName, toUserName, appListText);
                 } else {
-                    // Assume it's a price lookup: [country] [app name]
-                    const parts = keyword.split(' ');
-                    if (parts.length >= 2) {
-                        const countryName = parts[0];
-                        const appName = parts.slice(1).join(' ');
+                    // Fallback to price lookup: [App Name] [Country]
+                    const { appName, countryName } = parsePriceLookup(content);
+                    if (appName && countryName) {
                         const priceArticle = await lookupAppPrice(appName, countryName);
                         if (priceArticle) {
                             replyXml = generateNewsReply(fromUserName, toUserName, [priceArticle]);
@@ -185,9 +181,23 @@ const handleUserMessage = async (req, res) => {
 
         } catch (error) {
             console.error("ERROR in handleUserMessage:", error);
-            res.status(200).send('');
+            res.status(200).send(''); // Silently fail on any error
         }
     });
+};
+
+// [NEW] Helper function to parse "[App Name] [Country]" format
+const parsePriceLookup = (text) => {
+   for (const code in appCountryMap) {
+       const countryName = appCountryMap[code];
+       if (text.endsWith(countryName)) {
+           const appName = text.substring(0, text.length - countryName.length).trim();
+           if (appName) {
+               return { appName, countryName };
+           }
+       }
+   }
+   return { appName: null, countryName: null };
 };
 
 const lookupAppIcon = async (appName) => {
@@ -254,7 +264,7 @@ const fetchAndParseJson = async (url, title) => {
     const displayName = artist ? `${name} - ${artist}` : name;
     replyText += `${index + 1}、${displayName}\n${link}\n\n`;
   });
-  replyText += "(数据来自 Apple 官方)";
+  replyText += "数据来自 Apple 官方";
   return replyText;
 };
 
