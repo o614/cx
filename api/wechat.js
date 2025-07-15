@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 5.5 - Reverted price lookup to the simple and robust initial logic.
+ * Version 5.6 - Unified the reply format for price lookup.
  */
 
 const appCountryMap = {
@@ -150,7 +150,6 @@ const handleUserMessage = async (req, res) => {
             } else if (msgType === 'text') {
                 const content = message.Content.trim();
 
-                // [CORRECTED] Clear and robust command routing logic
                 if (content.startsWith('查价格 ')) {
                     const parts = content.substring(4).trim().split(' ');
                     if (parts.length >= 2) {
@@ -170,7 +169,6 @@ const handleUserMessage = async (req, res) => {
                         }
                     }
                 } else if (RANK_JSON_FEEDS[content]) {
-                    // This handles all chart lookups
                     const feedUrl = RANK_JSON_FEEDS[content];
                     const appListText = await fetchAndParseJson(feedUrl, content);
                     replyXml = generateTextReply(fromUserName, toUserName, appListText);
@@ -182,7 +180,7 @@ const handleUserMessage = async (req, res) => {
 
         } catch (error) {
             console.error("ERROR in handleUserMessage:", error);
-            res.status(200).send(''); // Silently fail on any error
+            res.status(200).send('');
         }
     });
 };
@@ -204,7 +202,6 @@ const lookupAppIcon = async (appName) => {
     return replyText;
 };
 
-// [CORRECTED] This function now returns a text string as originally designed.
 const lookupAppPriceAsText = async (appName, countryName) => {
     const countryCode = Object.keys(appCountryMap).find(code => appCountryMap[code] === countryName);
     if (!countryCode) return '';
@@ -221,7 +218,9 @@ const lookupAppPriceAsText = async (appName, countryName) => {
     const app = data.results[0];
     const price = app.formattedPrice || (app.price === 0 ? '免费' : '未知');
 
-    let replyText = `「${app.trackName}」价格查询：\n\n`;
+    // [MODIFIED] Added the prefix to the reply text
+    let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n`;
+    replyText += `「${app.trackName}」\n\n`;
     replyText += `地区：${countryName}\n`;
     replyText += `价格：${price}\n\n`;
     replyText += `数据来自 Apple 官方`;
