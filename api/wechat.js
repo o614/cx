@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 4.7 - Added App Price Lookup feature.
+ * Version 4.8 - Implemented fuzzy search for App Price Lookup.
  */
 
 const appCountryMap = {
@@ -151,7 +151,6 @@ const handleUserMessage = async (req, res) => {
                 const content = message.Content;
                 keyword = content.trim();
 
-                // [NEW] Price lookup logic
                 if (keyword.startsWith('查价格 ')) {
                     const parts = keyword.substring(4).trim().split(' ');
                     if (parts.length >= 2) {
@@ -159,11 +158,8 @@ const handleUserMessage = async (req, res) => {
                         const countryName = parts[parts.length - 1];
                         const priceText = await lookupAppPrice(appName, countryName);
                         replyXml = generateTextReply(fromUserName, toUserName, priceText);
-                    } else {
-                        // Silently ignore incorrect format
                     }
                 } else {
-                    // Existing chart lookup logic
                     const feedUrl = RANK_JSON_FEEDS[keyword];
                     if (feedUrl) {
                         const appListText = await fetchAndParseJson(feedUrl, keyword);
@@ -186,14 +182,13 @@ const lookupAppPrice = async (appName, countryName) => {
     const countryCode = Object.keys(appCountryMap).find(code => appCountryMap[code] === countryName);
 
     if (!countryCode) {
-        return `未找到地区“${countryName}”。`;
+        return ''; // Silently ignore if country not found
     }
 
     const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=${countryCode}&entity=software&limit=1`;
     let requestUrl = searchUrl;
 
     if (countryCode === 'cn') {
-        console.log("Using proxy for China region price lookup.");
         requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
     }
 
@@ -201,16 +196,18 @@ const lookupAppPrice = async (appName, countryName) => {
     const data = response.data;
 
     if (data.resultCount === 0 || !data.results || data.results.length === 0) {
-        return `在“${countryName}”未找到名为“${appName}”的应用。`;
+        return ''; // Silently ignore if app not found
     }
 
     const app = data.results[0];
     const price = app.formattedPrice || (app.price === 0 ? '免费' : '未知');
 
-    let replyText = `「${app.trackName}」价格查询：\n\n`;
+    // [MODIFIED] New reply format for better UX
+    let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n`;
+    replyText += `「${app.trackName}」\n\n`;
     replyText += `地区：${countryName}\n`;
     replyText += `价格：${price}\n\n`;
-    replyText += `*数据来自 Apple 官方`;
+    replyText += `(数据来自 Apple 官方)`;
 
     return replyText;
 };
@@ -220,7 +217,6 @@ const fetchAndParseJson = async (url, title) => {
   const isChinaRequest = url.includes('/cn/');
 
   if (isChinaRequest) {
-    console.log("Using proxy for China region.");
     requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
   }
 
@@ -247,7 +243,7 @@ const fetchAndParseJson = async (url, title) => {
     const displayName = artist ? `${name} - ${artist}` : name;
     replyText += `${index + 1}、${displayName}\n${link}\n\n`;
   });
-  replyText += "*数据来自 Apple 官方";
+  replyText += "(数据来自 Apple 官方)";
 
   return replyText;
 };
