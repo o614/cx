@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 5.0 - Added App Icon lookup feature.
+ * Version 5.1 - Updated the subscribe reply message only.
  */
 
 const appCountryMap = {
@@ -144,7 +144,8 @@ const handleUserMessage = async (req, res) => {
             if (msgType === 'event') {
                 const event = message.Event;
                 if (event === 'subscribe') {
-                    const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=榜单查询&msgmenuid=榜单查询"> ›榜单查询‹ </a>查看热门榜单\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=订阅查询&msgmenuid=订阅查询"> ›订阅查询‹ </a>了解订阅价格\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=人工服务&msgmenuid=人工服务"> ›人工服务‹ </a>召唤真人客服\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
+                    // [MODIFIED] Updated welcome message
+                    const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=应用榜单&msgmenuid=应用榜单"> ›应用榜单‹ </a>查看热门应用\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=音乐榜单&msgmenuid=音乐榜单"> ›音乐榜单‹ </a>查看热门专辑\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=价格查询&msgmenuid=价格查询"> ›价格查询‹ </a>了解软件定价\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=图标获取&msgmenuid=图标获取"> ›图标获取‹ </a>收藏高清图标\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=订阅查询&msgmenuid=订阅查询"> ›订阅查询‹ </a>了解内购价格\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=人工服务&msgmenuid=人工服务"> ›人工服务‹ </a>召唤真人客服\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
             } else if (msgType === 'text') {
@@ -161,7 +162,7 @@ const handleUserMessage = async (req, res) => {
                             replyXml = generateNewsReply(fromUserName, toUserName, [priceArticle]);
                         }
                     }
-                } else if (keyword.startsWith('图标 ')) { // [NEW] Icon lookup logic
+                } else if (keyword.startsWith('图标 ')) {
                     const appName = keyword.substring(3).trim();
                     if (appName) {
                         const iconReplyText = await lookupAppIcon(appName);
@@ -189,46 +190,35 @@ const handleUserMessage = async (req, res) => {
 };
 
 const lookupAppIcon = async (appName) => {
-    // Default search in the US store for the most comprehensive catalog
     const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=us&entity=software&limit=1`;
-
     const response = await axios.get(searchUrl, { timeout: 8000 });
     const data = response.data;
-
     if (data.resultCount === 0 || !data.results || data.results.length === 0) {
-        return ''; // Silently ignore if app not found
+        return '';
     }
-
     const app = data.results[0];
     const highResIconUrl = (app.artworkUrl100 || '').replace('100x100bb.jpg', '1024x1024bb.jpg');
-
     if (!highResIconUrl) return '';
-
     let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n`;
     replyText += `「${app.trackName}」\n\n`;
     replyText += `这是它的高清图标链接 (可复制到浏览器打开)：\n${highResIconUrl}\n\n`;
     replyText += `(数据来自 Apple 官方)`;
-
     return replyText;
 };
 
 const lookupAppPrice = async (appName, countryName) => {
     const countryCode = Object.keys(appCountryMap).find(code => appCountryMap[code] === countryName);
     if (!countryCode) return null;
-
     const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=${countryCode}&entity=software&limit=1`;
     let requestUrl = searchUrl;
     if (countryCode === 'cn') {
         requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
     }
-
     const response = await axios.get(requestUrl, { timeout: 8000 });
     const data = response.data;
     if (data.resultCount === 0 || !data.results || data.results.length === 0) return null;
-
     const app = data.results[0];
     const price = app.formattedPrice || (app.price === 0 ? '免费' : '未知');
-
     return {
         title: `「${app.trackName}」\n价格：${price} (${countryName})`,
         description: `开发者: ${app.artistName}`,
@@ -240,18 +230,14 @@ const lookupAppPrice = async (appName, countryName) => {
 const fetchAndParseJson = async (url, title) => {
   let requestUrl = url;
   const isChinaRequest = url.includes('/cn/');
-
   if (isChinaRequest) {
     requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
   }
-
   const networkPromise = axios.get(requestUrl, { timeout: 8000 });
   const timeoutPromise = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('请求超时')), 9500)
   );
-
   const response = await Promise.race([networkPromise, timeoutPromise]);
-
   const data = response.data;
   if (!data.feed || !data.feed.results) {
     throw new Error("从苹果获取的JSON数据格式不正确。");
@@ -259,7 +245,6 @@ const fetchAndParseJson = async (url, title) => {
   const results = data.feed.results;
   const now = new Date();
   const timestamp = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
-
   let replyText = `${title}\n${timestamp}\n\n`;
   results.forEach((app, index) => {
     const name = app.name;
@@ -269,7 +254,6 @@ const fetchAndParseJson = async (url, title) => {
     replyText += `${index + 1}、${displayName}\n${link}\n\n`;
   });
   replyText += "(数据来自 Apple 官方)";
-
   return replyText;
 };
 
