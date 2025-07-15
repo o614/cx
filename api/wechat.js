@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 5.4 - Reverted to v5.2 base and correctly implemented price lookup.
+ * Version 5.5 - Reverted price lookup to the simple and robust initial logic.
  */
 
 const appCountryMap = {
@@ -150,8 +150,18 @@ const handleUserMessage = async (req, res) => {
             } else if (msgType === 'text') {
                 const content = message.Content.trim();
 
-                // [NEW] Clear and robust command routing logic
-                if (content.startsWith('图标 ')) {
+                // [CORRECTED] Clear and robust command routing logic
+                if (content.startsWith('查价格 ')) {
+                    const parts = content.substring(4).trim().split(' ');
+                    if (parts.length >= 2) {
+                        const appName = parts.slice(0, -1).join(' ');
+                        const countryName = parts[parts.length - 1];
+                        const priceText = await lookupAppPriceAsText(appName, countryName);
+                        if (priceText) {
+                            replyXml = generateTextReply(fromUserName, toUserName, priceText);
+                        }
+                    }
+                } else if (content.startsWith('图标 ')) {
                     const appName = content.substring(3).trim();
                     if (appName) {
                         const iconReplyText = await lookupAppIcon(appName);
@@ -164,15 +174,6 @@ const handleUserMessage = async (req, res) => {
                     const feedUrl = RANK_JSON_FEEDS[content];
                     const appListText = await fetchAndParseJson(feedUrl, content);
                     replyXml = generateTextReply(fromUserName, toUserName, appListText);
-                } else {
-                    // Fallback to price lookup: [App Name] [Country]
-                    const { appName, countryName } = parsePriceLookup(content);
-                    if (appName && countryName) {
-                        const priceArticle = await lookupAppPrice(appName, countryName);
-                        if (priceArticle) {
-                            replyXml = generateNewsReply(fromUserName, toUserName, [priceArticle]);
-                        }
-                    }
                 }
             }
 
@@ -184,20 +185,6 @@ const handleUserMessage = async (req, res) => {
             res.status(200).send(''); // Silently fail on any error
         }
     });
-};
-
-// [NEW] Helper function to parse "[App Name] [Country]" format
-const parsePriceLookup = (text) => {
-   for (const code in appCountryMap) {
-       const countryName = appCountryMap[code];
-       if (text.endsWith(countryName)) {
-           const appName = text.substring(0, text.length - countryName.length).trim();
-           if (appName) {
-               return { appName, countryName };
-           }
-       }
-   }
-   return { appName: null, countryName: null };
 };
 
 const lookupAppIcon = async (appName) => {
@@ -213,13 +200,15 @@ const lookupAppIcon = async (appName) => {
     let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n`;
     replyText += `「${app.trackName}」\n\n`;
     replyText += `这是它的高清图标链接 (可复制到浏览器打开)：\n${highResIconUrl}\n\n`;
-    replyText += `(数据来自 Apple 官方)`;
+    replyText += `数据来自 Apple 官方`;
     return replyText;
 };
 
-const lookupAppPrice = async (appName, countryName) => {
+// [CORRECTED] This function now returns a text string as originally designed.
+const lookupAppPriceAsText = async (appName, countryName) => {
     const countryCode = Object.keys(appCountryMap).find(code => appCountryMap[code] === countryName);
-    if (!countryCode) return null;
+    if (!countryCode) return '';
+
     const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=${countryCode}&entity=software&limit=1`;
     let requestUrl = searchUrl;
     if (countryCode === 'cn') {
@@ -227,15 +216,17 @@ const lookupAppPrice = async (appName, countryName) => {
     }
     const response = await axios.get(requestUrl, { timeout: 8000 });
     const data = response.data;
-    if (data.resultCount === 0 || !data.results || data.results.length === 0) return null;
+    if (data.resultCount === 0 || !data.results || data.results.length === 0) return '';
+
     const app = data.results[0];
     const price = app.formattedPrice || (app.price === 0 ? '免费' : '未知');
-    return {
-        title: `「${app.trackName}」\n价格：${price} (${countryName})`,
-        description: `开发者: ${app.artistName}`,
-        url: app.trackViewUrl,
-        picUrl: app.artworkUrl100
-    };
+
+    let replyText = `「${app.trackName}」价格查询：\n\n`;
+    replyText += `地区：${countryName}\n`;
+    replyText += `价格：${price}\n\n`;
+    replyText += `数据来自 Apple 官方`;
+
+    return replyText;
 };
 
 const fetchAndParseJson = async (url, title) => {
