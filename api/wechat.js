@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 4.8 - Implemented fuzzy search for App Price Lookup.
+ * Version 5.0 - Added App Icon lookup feature.
  */
 
 const appCountryMap = {
@@ -156,8 +156,18 @@ const handleUserMessage = async (req, res) => {
                     if (parts.length >= 2) {
                         const appName = parts.slice(0, -1).join(' ');
                         const countryName = parts[parts.length - 1];
-                        const priceText = await lookupAppPrice(appName, countryName);
-                        replyXml = generateTextReply(fromUserName, toUserName, priceText);
+                        const priceArticle = await lookupAppPrice(appName, countryName);
+                        if (priceArticle) {
+                            replyXml = generateNewsReply(fromUserName, toUserName, [priceArticle]);
+                        }
+                    }
+                } else if (keyword.startsWith('图标 ')) { // [NEW] Icon lookup logic
+                    const appName = keyword.substring(3).trim();
+                    if (appName) {
+                        const iconReplyText = await lookupAppIcon(appName);
+                        if (iconReplyText) {
+                            replyXml = generateTextReply(fromUserName, toUserName, iconReplyText);
+                        }
                     }
                 } else {
                     const feedUrl = RANK_JSON_FEEDS[keyword];
@@ -178,21 +188,11 @@ const handleUserMessage = async (req, res) => {
     });
 };
 
-const lookupAppPrice = async (appName, countryName) => {
-    const countryCode = Object.keys(appCountryMap).find(code => appCountryMap[code] === countryName);
+const lookupAppIcon = async (appName) => {
+    // Default search in the US store for the most comprehensive catalog
+    const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=us&entity=software&limit=1`;
 
-    if (!countryCode) {
-        return ''; // Silently ignore if country not found
-    }
-
-    const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=${countryCode}&entity=software&limit=1`;
-    let requestUrl = searchUrl;
-
-    if (countryCode === 'cn') {
-        requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
-    }
-
-    const response = await axios.get(requestUrl, { timeout: 8000 });
+    const response = await axios.get(searchUrl, { timeout: 8000 });
     const data = response.data;
 
     if (data.resultCount === 0 || !data.results || data.results.length === 0) {
@@ -200,16 +200,41 @@ const lookupAppPrice = async (appName, countryName) => {
     }
 
     const app = data.results[0];
-    const price = app.formattedPrice || (app.price === 0 ? '免费' : '未知');
+    const highResIconUrl = (app.artworkUrl100 || '').replace('100x100bb.jpg', '1024x1024bb.jpg');
 
-    // [MODIFIED] New reply format for better UX
+    if (!highResIconUrl) return '';
+
     let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n`;
     replyText += `「${app.trackName}」\n\n`;
-    replyText += `地区：${countryName}\n`;
-    replyText += `价格：${price}\n\n`;
+    replyText += `这是它的高清图标链接 (可复制到浏览器打开)：\n${highResIconUrl}\n\n`;
     replyText += `(数据来自 Apple 官方)`;
 
     return replyText;
+};
+
+const lookupAppPrice = async (appName, countryName) => {
+    const countryCode = Object.keys(appCountryMap).find(code => appCountryMap[code] === countryName);
+    if (!countryCode) return null;
+
+    const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=${countryCode}&entity=software&limit=1`;
+    let requestUrl = searchUrl;
+    if (countryCode === 'cn') {
+        requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
+    }
+
+    const response = await axios.get(requestUrl, { timeout: 8000 });
+    const data = response.data;
+    if (data.resultCount === 0 || !data.results || data.results.length === 0) return null;
+
+    const app = data.results[0];
+    const price = app.formattedPrice || (app.price === 0 ? '免费' : '未知');
+
+    return {
+        title: `「${app.trackName}」\n价格：${price} (${countryName})`,
+        description: `开发者: ${app.artistName}`,
+        url: app.trackViewUrl,
+        picUrl: app.artworkUrl100
+    };
 };
 
 const fetchAndParseJson = async (url, title) => {
@@ -258,4 +283,17 @@ function generateTextReply(toUser, fromUser, content) {
     MsgType: 'text',
     Content: content,
   });
+}
+
+function generateNewsReply(toUser, fromUser, articles) {
+    if (!toUser || !fromUser || !articles || articles.length === 0) return '';
+    const builder = new xml2js.Builder({ rootName: 'xml', cdata: true, headless: true });
+    return builder.buildObject({
+      ToUserName: toUser,
+      FromUserName: fromUser,
+      CreateTime: Math.floor(Date.now() / 1000),
+      MsgType: 'news',
+      ArticleCount: articles.length,
+      Articles: { item: articles },
+    });
 }
