@@ -102,7 +102,7 @@ const handleUserMessage = async (req, res) => {
             if (msgType === 'event') {
                 const event = message.Event;
                 if (event === 'subscribe') {
-                    const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=榜单查询&msgmenuid=榜单查询"> ›榜单查询‹ </a>查看热门榜单\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=订阅查询&msgmenuid=订阅查询"> ›订阅查询‹ </a>了解订阅价格\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=人工服务&msgmenuid=人工服务"> ›人工服务‹ </a>召唤真人客服\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
+                    const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=榜单查询&msgmenuid=榜单查询"> ›实时榜单‹ </a>查看热门应用\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=订阅查询&msgmenuid=订阅查询"> ›订阅查询‹ </a>了解订阅价格\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=人工服务&msgmenuid=人工服务"> ›人工服务‹ </a>召唤真人客服\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
             } else if (msgType === 'text') {
@@ -161,11 +161,11 @@ const fetchAndParseJson = async (url, title) => {
   const now = new Date();
   const timestamp = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
 
-  let replyText = `${title} ${timestamp}\n\n`;
+  let replyText = `${title}\n${timestamp}\n\n`;
   results.forEach((app, index) => {
     replyText += `${index + 1}、${app.name}\n${app.url}\n\n`;
   });
-  replyText += "数据来自 Apple 官方";
+  replyText += "*数据来自 Apple 官方";
 
   return replyText;
 };
