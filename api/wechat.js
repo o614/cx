@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 4.6 - Added Music Charts (Albums & Songs) for all supported regions.
+ * Version 4.7 - Added App Price Lookup feature.
  */
 
 const appCountryMap = {
@@ -151,10 +151,24 @@ const handleUserMessage = async (req, res) => {
                 const content = message.Content;
                 keyword = content.trim();
 
-                const feedUrl = RANK_JSON_FEEDS[keyword];
-                if (feedUrl) {
-                    const appListText = await fetchAndParseJson(feedUrl, keyword);
-                    replyXml = generateTextReply(fromUserName, toUserName, appListText);
+                // [NEW] Price lookup logic
+                if (keyword.startsWith('查价格 ')) {
+                    const parts = keyword.substring(4).trim().split(' ');
+                    if (parts.length >= 2) {
+                        const appName = parts.slice(0, -1).join(' ');
+                        const countryName = parts[parts.length - 1];
+                        const priceText = await lookupAppPrice(appName, countryName);
+                        replyXml = generateTextReply(fromUserName, toUserName, priceText);
+                    } else {
+                        // Silently ignore incorrect format
+                    }
+                } else {
+                    // Existing chart lookup logic
+                    const feedUrl = RANK_JSON_FEEDS[keyword];
+                    if (feedUrl) {
+                        const appListText = await fetchAndParseJson(feedUrl, keyword);
+                        replyXml = generateTextReply(fromUserName, toUserName, appListText);
+                    }
                 }
             }
 
@@ -163,10 +177,42 @@ const handleUserMessage = async (req, res) => {
 
         } catch (error) {
             console.error("ERROR in handleUserMessage:", error);
-            // No error reply to user
             res.status(200).send('');
         }
     });
+};
+
+const lookupAppPrice = async (appName, countryName) => {
+    const countryCode = Object.keys(appCountryMap).find(code => appCountryMap[code] === countryName);
+
+    if (!countryCode) {
+        return `未找到地区“${countryName}”。`;
+    }
+
+    const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=${countryCode}&entity=software&limit=1`;
+    let requestUrl = searchUrl;
+
+    if (countryCode === 'cn') {
+        console.log("Using proxy for China region price lookup.");
+        requestUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(searchUrl)}`;
+    }
+
+    const response = await axios.get(requestUrl, { timeout: 8000 });
+    const data = response.data;
+
+    if (data.resultCount === 0 || !data.results || data.results.length === 0) {
+        return `在“${countryName}”未找到名为“${appName}”的应用。`;
+    }
+
+    const app = data.results[0];
+    const price = app.formattedPrice || (app.price === 0 ? '免费' : '未知');
+
+    let replyText = `「${app.trackName}」价格查询：\n\n`;
+    replyText += `地区：${countryName}\n`;
+    replyText += `价格：${price}\n\n`;
+    replyText += `*数据来自 Apple 官方`;
+
+    return replyText;
 };
 
 const fetchAndParseJson = async (url, title) => {
@@ -195,7 +241,6 @@ const fetchAndParseJson = async (url, title) => {
 
   let replyText = `${title}\n${timestamp}\n\n`;
   results.forEach((app, index) => {
-    // [MODIFIED] Handle both app and music formats
     const name = app.name;
     const artist = app.artistName || '';
     const link = app.url;
