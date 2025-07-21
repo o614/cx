@@ -144,7 +144,7 @@ const handleUserMessage = async (req, res) => {
             if (msgType === 'event') {
                 const event = message.Event;
                 if (event === 'subscribe') {
-                    const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=应用榜单&msgmenuid=应用榜单"> ›应用榜单‹ </a>查看热门应用\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=音乐榜单&msgmenuid=音乐榜单"> ›音乐榜单‹ </a>查看热门专辑\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=价格查询&msgmenuid=价格查询"> ›价格查询‹ </a>了解软件定价\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=图标获取&msgmenuid=图标获取"> ›图标获取‹ </a>收藏高清图标\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=订阅查询&msgmenuid=订阅查询"> ›订阅查询‹ </a>了解内购价格\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=人工服务&msgmenuid=人工服务"> ›人工服务‹ </a>召唤真人客服\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
+                    const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=应用榜单&msgmenuid=应用榜单"> ›应用榜单‹ </a>查看热门应用\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
             } else if (msgType === 'text') {
