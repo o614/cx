@@ -114,7 +114,7 @@ const handleUserMessage = async (req, res) => {
             if (msgType === 'event') {
                 if (message.Event === 'subscribe') {
                     // 【已更新】欢迎语中的关键词
-                    const welcomeMessage = `😘 感谢关注！果粉秘密基地~\n\n回复【上架查询 App名称】查询App全球上架情况，例如：\n上架查询 TikTok\n\n回复【价格查询 App名称 国家】查询价格，例如：\n价格查询 Procreate 美国\n\n回复【美国免费榜】查看榜单。\n\n更多服务请戳底部菜单栏了解~`;
+                    const welcomeMessage = `😘 么么哒~\n\n恭喜！你发现了果粉秘密基地~\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=最新教程&msgmenuid=最新教程"> ›最新教程‹ </a>获取最新文章\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式"> ›付款方式‹ </a>查看支持国家\n\n点击<a href="weixin://bizmsgmenu?msgmenucontent=应用榜单&msgmenuid=应用榜单"> ›应用榜单‹ </a>查看热门应用\n\n更多服务请戳底部菜单栏了解~\n\n↓   ↓   ↓`;
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
             } else if (msgType === 'text') {
@@ -130,9 +130,9 @@ const handleUserMessage = async (req, res) => {
                             replyText = `未能在主要地区（美国、中国）的应用商店中找到「${appName}」，请检查应用名称是否正确。`;
                         } else {
                             const availableCountries = await checkAvailability(appInfo.trackId);
-                            replyText = `查询应用：「${appInfo.trackName}」\n\n`;
+                            replyText = `查询应用：\n「${appInfo.trackName}」\n`;
                             if (availableCountries.length > 0) {
-                                replyText += `✅ 可下载地区：\n${availableCountries.join(', ')}`;
+                                replyText += `可下载地区：\n${availableCountries.join(', ')}`;
                             } else {
                                 replyText += `在我们查询的12个热门国家/地区中，均未发现此应用上架。`;
                             }
@@ -300,7 +300,7 @@ const fetchAndParseJson = async (url, title) => {
         const results = data.feed.results;
         const now = new Date();
         const timestamp = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
-        let replyText = `📊 ${title}\n${timestamp}\n\n`;
+        let replyText = `${title}\n${timestamp}\n\n`;
         results.forEach((app, index) => {
             const name = app.name;
             const artist = app.artistName || '';
@@ -330,3 +330,4 @@ function generateTextReply(toUser, fromUser, content) {
         Content: content,
     });
 }
+
