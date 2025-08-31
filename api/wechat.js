@@ -1,6 +1,6 @@
 /**
  * Vercel Serverless Function for WeChat Official Account
- * Version 6.0 - Added App Availability Lookup feature.
+ * Version 6.1 - Updated keywords and target countries for availability lookup.
  */
 
 const crypto = require('crypto');
@@ -15,7 +15,7 @@ const appCountryMap = {
     'af': '阿富汗', 'al': '阿尔巴尼亚', 'dz': '阿尔及利亚', 'ao': '安哥拉', 'ai': '安圭拉',
     'ag': '安提瓜和巴布达', 'ar': '阿根廷', 'am': '亚美尼亚', 'au': '澳大利亚', 'at': '奥地利',
     'az': '阿塞拜疆', 'bs': '巴哈马', 'bh': '巴林', 'bb': '巴巴多斯', 'by': '白俄罗斯',
-    'be': '比利时', 'bz': '伯利兹', 'bj': '贝宁', 'bm': '百 katılı大', 'bt': '不丹',
+    'be': '比利时', 'bz': '伯利兹', 'bj': '贝宁', 'bm': '百慕大', 'bt': '不丹',
     'bo': '玻利维亚', 'ba': '波斯尼亚和黑塞哥维那', 'bw': '博茨瓦纳', 'br': '巴西',
     'vg': '英属维尔京群岛', 'bn': '文莱', 'bg': '保加利亚', 'bf': '布基纳法索',
     'kh': '柬埔寨', 'cm': '喀麦隆', 'ca': '加拿大', 'cv': '佛得角', 'ky': '开曼群岛',
@@ -41,7 +41,7 @@ const appCountryMap = {
     'pl': '波兰', 'pt': '葡萄牙', 'qa': '卡塔尔', 'cg': '刚果共和国', 'ro': '罗马尼亚',
     'ru': '俄罗斯', 'rw': '卢旺达', 'sa': '沙特阿拉伯', 'sn': '塞内加尔', 'rs': '塞尔维亚',
     'sc': '塞舌尔', 'sl': '塞拉利昂', 'sg': '新加坡', 'sk': '斯洛伐克', 'si': '斯洛文尼亚',
-    'sb': '所罗门群岛', 'za': '南非', 'es': '西班牙', 'lk': '斯里Лан卡',
+    'sb': '所罗门群岛', 'za': '南非', 'es': '西班牙', 'lk': '斯里兰卡',
     'kn': '圣基茨和尼维斯', 'lc': '圣卢西亚', 'vc': '圣文森特和格林纳丁斯',
     'sr': '苏里南', 'se': '瑞典', 'ch': '瑞士', 'st': '圣多美和普林西比',
     'tw': '台湾', 'tj': '塔吉克斯坦', 'tz': '坦桑尼亚', 'th': '泰国', 'to': '汤加',
@@ -58,16 +58,12 @@ for (const code in appCountryMap) {
     RANK_JSON_FEEDS[`${name}付费榜`] = `https://rss.marketingtools.apple.com/api/v2/${code}/apps/top-paid/10/apps.json`;
 }
 
-// 【新增】定义“上架查询”功能的目标国家列表
+// 【已更新】“上架查询”功能的目标国家列表
 const TARGET_COUNTRIES = [
-    { code: 'us', name: '美国' }, { code: 'hk', name: '香港' }, { code: 'jp', name: '日本' },
-    { code: 'gb', name: '英国' }, { code: 'tw', name: '台湾' }, { code: 'mo', name: '澳门' },
-    { code: 'ca', name: '加拿大' }, { code: 'au', 'name': '澳大利亚' }, { code: 'sg', 'name': '新加坡' },
-    { code: 'kr', name: '韩国' }, { code: 'tr', name: '土耳其' }, { code: 'de', name: '德国' },
-    { code: 'fr', name: '法国' }, { code: 'ru', name: '俄罗斯' }, { code: 'br', name: '巴西' },
-    { code: 'in', name: '印度' }, { code: 'id', name: '印尼' }, { code: 'th', name: '泰国' },
-    { code: 'vn', name: '越南' }, { code: 'ph', name: '菲律宾' }, { code: 'my', name: '马来西亚' },
-    { code: 'cn', name: '中国大陆' } // 也包含中国大陆作为对比
+    { code: 'us', name: '美国' }, { code: 'hk', name: '香港' }, { code: 'mo', name: '澳门' },
+    { code: 'tw', name: '台湾' }, { code: 'jp', name: '日本' }, { code: 'kr', name: '韩国' },
+    { code: 'gb', name: '英国' }, { code: 'ca', name: '加拿大' }, { code: 'au', name: '澳大利亚' },
+    { code: 'sg', name: '新加坡' }, { code: 'tr', name: '土耳其' }, { code: 'ng', name: '尼日利亚' }
 ];
 
 // --- 主处理逻辑 ---
@@ -117,14 +113,16 @@ const handleUserMessage = async (req, res) => {
 
             if (msgType === 'event') {
                 if (message.Event === 'subscribe') {
-                    const welcomeMessage = `😘 感谢关注！果粉秘密基地~\n\n回复【可下载地区 App名称】查询App全球上架情况，例如：\n可下载地区 TikTok\n\n回复【查价格 App名称 国家】查询价格，例如：\n查价格 Procreate 美国\n\n回复【美国免费榜】查看榜单。\n\n更多服务请戳底部菜单栏了解~`;
+                    // 【已更新】欢迎语中的关键词
+                    const welcomeMessage = `😘 感谢关注！果粉秘密基地~\n\n回复【上架查询 App名称】查询App全球上架情况，例如：\n上架查询 TikTok\n\n回复【价格查询 App名称 国家】查询价格，例如：\n价格查询 Procreate 美国\n\n回复【美国免费榜】查看榜单。\n\n更多服务请戳底部菜单栏了解~`;
                     replyXml = generateTextReply(fromUserName, toUserName, welcomeMessage);
                 }
             } else if (msgType === 'text') {
                 const content = message.Content.trim();
 
-                if (content.startsWith('可下载地区 ')) {
-                    const appName = content.substring(6).trim();
+                // 【已更新】关键词 "可下载地区" -> "上架查询"
+                if (content.startsWith('上架查询 ')) {
+                    const appName = content.substring(5).trim(); // "上架查询 " 长度为 5
                     if (appName) {
                         const appInfo = await findAppUniversalId(appName);
                         let replyText = '';
@@ -136,14 +134,15 @@ const handleUserMessage = async (req, res) => {
                             if (availableCountries.length > 0) {
                                 replyText += `✅ 可下载地区：\n${availableCountries.join(', ')}`;
                             } else {
-                                replyText += `在我们查询的20多个热门国家/地区中，均未发现此应用上架。`;
+                                replyText += `在我们查询的12个热门国家/地区中，均未发现此应用上架。`;
                             }
                             replyText += `\n\n数据来自 Apple 官方`;
                         }
                         replyXml = generateTextReply(fromUserName, toUserName, replyText);
                     }
-                } else if (content.startsWith('查价格 ')) {
-                    const parts = content.substring(4).trim().split(' ');
+                // 【已更新】关键词 "查价格" -> "价格查询"
+                } else if (content.startsWith('价格查询 ')) {
+                    const parts = content.substring(5).trim().split(' '); // "价格查询 " 长度为 5
                     if (parts.length >= 2) {
                         const appName = parts.slice(0, -1).join(' ');
                         const countryName = parts[parts.length - 1];
@@ -181,7 +180,7 @@ const handleUserMessage = async (req, res) => {
 // --- 功能函数 ---
 
 /**
- * 【新增】查找App的全球通用ID (trackId)
+ * 查找App的全球通用ID (trackId)
  * @param {string} appName - 用户输入的App名称
  * @returns {Promise<object|null>} - 返回包含 trackId 和 trackName 的对象，或 null
  */
@@ -214,7 +213,7 @@ async function findAppUniversalId(appName) {
 }
 
 /**
- * 【新增】检查指定 trackId 的 App 在目标国家列表中的上架情况
+ * 检查指定 trackId 的 App 在目标国家列表中的上架情况
  * @param {string|number} trackId - App的全球唯一ID
  * @returns {Promise<string[]>} - 返回一个包含所有可下载国家中文名的数组
  */
