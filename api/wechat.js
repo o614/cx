@@ -1,11 +1,13 @@
 /**
  * WeChat Official Account Serverless Function - Final Optimized Version
- * Version 7.0 - Removed emojis, adjusted timestamp format, and standardized replies.
+ * Version 7.1 - Corrected module import for xml2js.
  */
-const crypto = 'crypto';
-const axios = 'axios';
-const xml2js = 'xml2js';
-const stringSimilarity = 'string-similarity';
+const crypto = require('crypto');
+const axios = require('axios');
+const stringSimilarity = require('string-similarity');
+
+// --- Corrected xml2js import ---
+const { Parser, Builder } = require('xml2js');
 
 // --- 配置区域 ---
 
@@ -21,8 +23,8 @@ const TARGET_COUNTRIES_FOR_AVAILABILITY = [
     { code: 'sg', name: '新加坡' }, { code: 'tr', name: '土耳其' }, { code: 'ng', name: '尼日利亚' }
 ];
 
-const parser = new xml2js.Parser({ explicitArray: false, trim: true });
-const builder = new xml2js.Builder({ cdata: true, rootName: 'xml', headless: true });
+const parser = new Parser({ explicitArray: false, trim: true });
+const builder = new Builder({ cdata: true, rootName: 'xml', headless: true });
 
 // --- 主处理逻辑 ---
 
@@ -51,7 +53,6 @@ async function handlePostRequest(req, res) {
         const parsedXml = await parser.parseStringPromise(rawBody);
         message = parsedXml.xml;
         if (message.MsgType === 'event' && message.Event === 'subscribe') {
-            // 1. 去掉所有 emoji 符号
             replyContent = `终于等到你，果粉秘密基地~\n\n您可以这样向我提问：\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=上架查询%20TikTok&msgmenuid=1">上架查询 TikTok</a>\n查询App全球上架情况\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20Procreate%20美国&msgmenuid=2">价格 Procreate 美国</a>\n智能查询App价格\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=切换%20日本&msgmenuid=3">切换 日本</a>\n一键切换商店地区\n\n更多功能(如查榜单、取图标)请戳底部菜单栏了解~`;
         }
         else if (message.MsgType === 'text') {
@@ -115,7 +116,6 @@ function isSupportedRegion(identifier) {
     return !!getCountryCode(identifier);
 }
 
-// 2. 查询价格的返回结果的时间改成这个格式：25/10/17 16:25
 function getFormattedTime() {
     const now = new Date();
     const beijingTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
@@ -135,12 +135,10 @@ async function handleChartQuery(regionName, chartType) {
     try {
         const response = await axios.get(url);
         const apps = response.data.feed.results;
-        // 1. 去掉所有 emoji 符号
         let resultText = `${regionName}${chartType}\n${getFormattedTime()}\n\n`;
         apps.forEach((app, index) => {
             resultText += `${index + 1}、<a href="${app.url}">${app.name}</a>\n`;
         });
-        // 4. 把所有数据来源改成斜体格式
         resultText += `\n*数据来源 Apple 官方*`;
         return resultText;
     } catch (e) { return '获取榜单失败，请稍后再试。'; } 
@@ -170,10 +168,8 @@ async function handlePriceQuery(appName, regionName) {
         const price = bestMatch.price === 0 ? '免费' : `${bestMatch.currency} ${bestMatch.price.toFixed(2)}`;
         const link = `<a href="${bestMatch.trackViewUrl}">${bestMatch.trackName}</a>`;
         
-        // 2. 修改时间格式的调用
         const dateTime = getFormattedTime();
         
-        // 4. 把所有数据来源改成斜体格式
         return `您搜索的“${appName}”最匹配的结果是：\n\n${link}\n\n地区：${regionName}\n价格：${price}\n时间：${dateTime}\n\n*数据来源 Apple 官方*`;
     } catch {
         return '查询价格失败，请稍后再试。';
@@ -189,7 +185,6 @@ function handleRegionSwitch(regionName) {
     const redirectUrl = `/WebObjects/MZStore.woa/wa/viewSoftware?mt=8&id=${stableAppId}`;
     const fullUrl = `https://itunes.apple.com/WebObjects/MZStore.woa/wa/resetAndRedirect?dsf=${dsf}&cc=${regionCode}&url=${encodeURIComponent(redirectUrl)}`;
 
-    // 1. 去掉所有 emoji 符号
     return `<a href="${fullUrl}">点击切换到【${regionName}】商店</a>`;
 }
 
@@ -203,12 +198,10 @@ async function handleAvailabilityQuery(appName) {
     const availableCountries = await checkAvailability(appInfo.trackId);
     let replyText = `查询应用：「${appInfo.trackName}」\n\n`;
     if (availableCountries.length > 0) {
-        // 1. 去掉所有 emoji 符号
         replyText += `可下载地区：\n${availableCountries.join(', ')}`;
     } else {
         replyText += `在我们查询的12个热门国家/地区中，均未发现此应用上架。`;
     }
-    // 4. 把所有数据来源改成斜体格式
     return replyText + `\n\n*数据来源 Apple 官方*`;
 }
 
@@ -255,10 +248,8 @@ async function lookupAppIcon(appName) {
         const highResIconUrl = (app.artworkUrl100 || '').replace('100x100bb.jpg', '1024x1024bb.jpg');
         if (!highResIconUrl) return '抱歉，未能获取到该应用的高清图标。';
         
-        // 3. 图标获取的返回结果把超链接改成 a标签格式
         const link = `<a href="${highResIconUrl}">点击获取高清图标</a>`;
 
-        // 4. 把所有数据来源改成斜体格式
         return `您搜索的“${appName}”最匹配的结果是：\n\n「${app.trackName}」\n\n${link}\n\n*数据来源 Apple 官方*`;
     } catch (error) {
         console.error("Error in lookupAppIcon:", error.message);
