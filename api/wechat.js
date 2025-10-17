@@ -195,7 +195,7 @@ async function handlePriceQuery(appName, regionName, isDefaultSearch) {
         let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n${link}\n\n地区：${regionName}\n价格：${price}\n时间：${getFormattedTime()}`;
 
         if (isDefaultSearch) {
-            replyText += `\n\n小贴士：想查其他地区？试试发送：\n价格 ${appName} 日本`;
+            replyText += `\n\n想查其他地区？\n试试发送：\n价格 ${appName} 日本`;
         }
         
         replyText += `\n\n*数据来源 Apple 官方*`;
@@ -214,7 +214,7 @@ function handleRegionSwitch(regionName) {
     const redirectUrl = `/WebObjects/MZStore.woa/wa/viewSoftware?mt=8&id=${stableAppId}`;
     const fullUrl = `https://itunes.apple.com/WebObjects/MZStore.woa/wa/resetAndRedirect?dsf=${dsf}&cc=${regionCode}&url=${encodeURIComponent(redirectUrl)}`;
 
-    return `<a href="${fullUrl}">点击切换到【${regionName}】商店</a>`;
+    return `<a href="${fullUrl}">点击切换到【${regionName}】App Store</a>`;
 }
 
 // --- 从旧代码移植过来的功能函数 ---
@@ -288,3 +288,4 @@ async function lookupAppIcon(appName) {
         return '查询应用图标失败，请稍后再试。';
     }
 }
+
