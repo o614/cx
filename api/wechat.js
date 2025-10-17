@@ -195,7 +195,7 @@ async function handlePriceQuery(appName, regionName, isDefaultSearch) {
         let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n${link}\n\n地区：${regionName}\n价格：${price}\n时间：${getFormattedTime()}`;
 
         if (isDefaultSearch) {
-            replyText += `\n\n想查其他地区？\n试试发送：\n价格 ${appName} 日本`;
+            replyText += `\n\n想查其他地区？试试发送：\n价格 ${appName} 日本`;
         }
         
         replyText += `\n\n*数据来源 Apple 官方*`;
@@ -288,4 +288,5 @@ async function lookupAppIcon(appName) {
         return '查询应用图标失败，请稍后再试。';
     }
 }
+
 
