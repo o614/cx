@@ -1,6 +1,6 @@
 /**
  * WeChat Official Account Serverless Function - Final Optimized Version
- * Version 7.2 - Refactored chart query logic and optimized icon link experience.
+ * Version 8.0 - Simplified search commands and refactored price query logic.
  */
 const crypto = require('crypto');
 const axios = require('axios');
@@ -51,31 +51,39 @@ async function handlePostRequest(req, res) {
         const parsedXml = await parser.parseStringPromise(rawBody);
         message = parsedXml.xml;
         if (message.MsgType === 'event' && message.Event === 'subscribe') {
-            replyContent = `终于等到你，果粉秘密基地~\n\n您可以这样向我提问：\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=上架查询%20TikTok&msgmenuid=1">上架查询 TikTok</a>\n查询App全球上架情况\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20Procreate%20美国&msgmenuid=2">价格 Procreate 美国</a>\n智能查询App价格\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=榜单%20日本&msgmenuid=3">榜单 日本</a>\n交互式查询榜单\n\n更多功能(如切换地区、取图标)请戳底部菜单栏了解~`;
+            // 【优化】更新欢迎语以匹配所有最终功能
+            replyContent = `终于等到你，果粉秘密基地~\n\n您可以这样向我提问：\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=查询%20TikTok&msgmenuid=1">查询 TikTok</a>\n查询App全球上架情况\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20Procreate&msgmenuid=2">价格 Procreate</a>\n智能查询App价格(默认美国)\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=榜单%20日本&msgmenuid=3">榜单 日本</a>\n交互式查询榜单\n\n更多功能(如切换地区、取图标)请戳底部菜单栏了解~`;
         }
         else if (message.MsgType === 'text') {
             const content = message.Content.trim();
-            // 【优化】新增 "榜单 国家" 指令的正则匹配
             const chartV2Match = content.match(/^榜单\s+(.+)$/i);
             const chartMatch = content.match(/^(.*?)(免费榜|付费榜)$/);
-            const priceMatch = content.match(/^价格\s+(.+?)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
+            // 【优化】修改价格查询的正则匹配
+            const priceMatchAdvanced = content.match(/^价格\s+(.+?)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
+            const priceMatchSimple = content.match(/^价格\s+(.+)$/i);
             const switchRegionMatch = content.match(/^(切换|地区)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
+            // 【优化】修改上架查询的指令
+            const availabilityMatch = content.match(/^查询\s+(.+)$/i);
 
-            // 【优化】新增 "榜单 国家" 的处理逻辑，默认查免费榜
             if (chartV2Match && isSupportedRegion(chartV2Match[1])) {
                 const regionName = chartV2Match[1].trim();
                 replyContent = await handleChartQuery(regionName, '免费榜');
             } else if (chartMatch && isSupportedRegion(chartMatch[1])) {
                 replyContent = await handleChartQuery(chartMatch[1], chartMatch[2]);
-            } else if (priceMatch && isSupportedRegion(priceMatch[2])) {
-                replyContent = await handlePriceQuery(priceMatch[1].trim(), priceMatch[2]);
+            // 【优化】价格查询逻辑重构，优先匹配高级指令
+            } else if (priceMatchAdvanced && isSupportedRegion(priceMatchAdvanced[2])) {
+                const appName = priceMatchAdvanced[1].trim();
+                const countryName = priceMatchAdvanced[2].trim();
+                replyContent = await handlePriceQuery(appName, countryName, false); // isDefaultSearch = false
+            } else if (priceMatchSimple) {
+                const appName = priceMatchSimple[1].trim();
+                replyContent = await handlePriceQuery(appName, '美国', true); // isDefaultSearch = true
             } else if (switchRegionMatch && isSupportedRegion(switchRegionMatch[2])) {
                 replyContent = handleRegionSwitch(switchRegionMatch[2].trim());
-            } else if (content.startsWith('上架查询 ')) {
-                const appName = content.substring(5).trim();
-                if (appName) {
-                    replyContent = await handleAvailabilityQuery(appName);
-                }
+            // 【优化】上架查询逻辑使用新指令
+            } else if (availabilityMatch) {
+                const appName = availabilityMatch[1].trim();
+                replyContent = await handleAvailabilityQuery(appName);
             } else if (content.startsWith('图标 ')) {
                 const appName = content.substring(3).trim();
                 if (appName) {
@@ -131,7 +139,6 @@ function getFormattedTime() {
     return `${String(year).slice(-2)}/${month}/${day} ${hours}:${minutes}`;
 }
 
-// 【优化】重构榜单查询函数，增加交互式链接
 async function handleChartQuery(regionName, chartType) {
     const regionCode = getCountryCode(regionName);
     if (!regionCode) return '不支持的地区或格式错误。';
@@ -145,7 +152,6 @@ async function handleChartQuery(regionName, chartType) {
             resultText += `${index + 1}、<a href="${app.url}">${app.name}</a>\n`;
         });
 
-        // 生成交互式切换链接
         let footerLink = '';
         if (chartType === '免费榜') {
             const command = `${regionName}付费榜`;
@@ -161,9 +167,10 @@ async function handleChartQuery(regionName, chartType) {
     } catch (e) { return '获取榜单失败，请稍后再试。'; } 
 }
 
-async function handlePriceQuery(appName, regionName) {
+// 【优化】价格查询函数增加 isDefaultSearch 参数用于判断是否添加小贴士
+async function handlePriceQuery(appName, regionName, isDefaultSearch) {
     const code = getCountryCode(regionName);
-    if (!code) return '不支持的地区或格式错误。';
+    if (!code) return `不支持的地区或格式错误：${regionName}`;
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&entity=software&country=${code}&limit=20`;
 
     try {
@@ -185,9 +192,14 @@ async function handlePriceQuery(appName, regionName) {
         const price = bestMatch.price === 0 ? '免费' : `${bestMatch.currency} ${bestMatch.price.toFixed(2)}`;
         const link = `<a href="${bestMatch.trackViewUrl}">${bestMatch.trackName}</a>`;
         
-        const dateTime = getFormattedTime();
+        let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n${link}\n\n地区：${regionName}\n价格：${price}\n时间：${getFormattedTime()}`;
+
+        if (isDefaultSearch) {
+            replyText += `\n\n小贴士：想查其他地区？试试发送：\n价格 ${appName} 日本`;
+        }
         
-        return `您搜索的“${appName}”最匹配的结果是：\n\n${link}\n\n地区：${regionName}\n价格：${price}\n时间：${dateTime}\n\n*数据来源 Apple 官方*`;
+        replyText += `\n\n*数据来源 Apple 官方*`;
+        return replyText;
     } catch {
         return '查询价格失败，请稍后再试。';
     }
@@ -227,14 +239,16 @@ async function findAppUniversalId(appName) {
     try {
         const response = await axios.get(usSearchUrl, { timeout: 4000 });
         if (response.data.resultCount > 0) {
-            return { trackId: response.data.results[0].trackId, trackName: response.data.results[0].trackName, trackViewUrl: response.data.results[0].trackViewUrl };
+            const app = response.data.results[0];
+            return { trackId: app.trackId, trackName: app.trackName, trackViewUrl: app.trackViewUrl };
         }
     } catch (error) { console.warn('Warning: Error searching in US store:', error.message); }
     const cnSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=cn&entity=software&limit=1`;
     try {
         const response = await axios.get(cnSearchUrl, { timeout: 4000 });
         if (response.data.resultCount > 0) {
-            return { trackId: response.data.results[0].trackId, trackName: response.data.results[0].trackName, trackViewUrl: response.data.results[0].trackViewUrl };
+            const app = response.data.results[0];
+            return { trackId: app.trackId, trackName: app.trackName, trackViewUrl: app.trackViewUrl };
         }
     } catch (error) { console.warn('Warning: Error searching in CN store:', error.message); }
     return null;
@@ -255,7 +269,6 @@ async function checkAvailability(trackId) {
     return availableCountries;
 }
 
-// 【优化】修改图标查询函数，修复链接问题并增强交互
 async function lookupAppIcon(appName) {
     try {
         const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=us&entity=software&limit=1`;
@@ -267,7 +280,6 @@ async function lookupAppIcon(appName) {
         const highResIconUrl = (app.artworkUrl100 || '').replace('100x100bb.jpg', '1024x1024bb.jpg');
         if (!highResIconUrl) return '抱歉，未能获取到该应用的高清图标。';
         
-        // 将 App 名称包装成一个指向 App Store 页面的 a 标签
         const appLink = `<a href="${app.trackViewUrl}">「${app.trackName}」</a>`;
 
         return `您搜索的“${appName}”最匹配的结果是：\n\n${appLink}\n\n这是它的高清图标链接(可复制到浏览器打开)：\n${highResIconUrl}\n\n*数据来源 Apple 官方*`;
