@@ -48,7 +48,7 @@ async function handlePostRequest(req, res) {
         message = parsedXml.xml;
         if (message.MsgType === 'event' && message.Event === 'subscribe') {
 
-            replyContent = `恭喜！你发现了果粉秘密基地\n\n您可以这样向我提问：\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式">付款方式</a>\n获取详细地址信息\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=查询%20TikTok&msgmenuid=1">查询 TikTok</a>\n查询 App 全球上架情况\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=榜单%20美国&msgmenuid=3">榜单 美国</a>\n交互式查询榜单\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20Gmail&msgmenuid=2">价格 Gmail</a>\n智能查 App 价格\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=切换%20美国&msgmenuid=4">切换 美国</a>\n一键切换商店地区\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=图标%20QQ&msgmenuid=5">图标 QQ</a>\n获取 App 高清图标\n\n更多服务请戳底部菜单栏了解`; // (modified)
+            replyContent = `恭喜！你发现了果粉秘密基地\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式">付款方式</a>\n获取详细地址信息\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=查询%20TikTok&msgmenuid=1">查询 TikTok</a>\n查询 App 全球上架情况\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=榜单%20美国&msgmenuid=3">榜单 美国</a>\n交互式查询榜单\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20YouTube&msgmenuid=2">价格 YouTube</a>\n智能查询 App 价格\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=切换%20美国&msgmenuid=4">切换 美国</a>\n一键切换商店地区\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=图标%20QQ&msgmenuid=5">图标 QQ</a>\n获取 App 高清图标\n\n更多服务请戳底部菜单栏了解`; // (modified)
         }
         else if (message.MsgType === 'text') {
             const content = message.Content.trim();
@@ -275,3 +275,4 @@ async function lookupAppIcon(appName) {
         return '查询应用图标失败，请稍后再试。';
     }
 }
+
