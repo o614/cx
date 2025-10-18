@@ -208,10 +208,10 @@ function handleRegionSwitch(regionName) {
     const chinaDsf = CONFIG.DSF_MAP[chinaCode];
     const chinaRedirectUrl = `/WebObjects/MZStore.woa/wa/viewSoftware?mt=8&id=${stableAppId}`; // 可以用同一个稳定App ID
     const chinaFullUrl = `https://itunes.apple.com/WebObjects/MZStore.woa/wa/resetAndRedirect?dsf=${chinaDsf}&cc=${chinaCode}&url=${encodeURIComponent(chinaRedirectUrl)}`;
-    const switchToChinaLink = `点此切换至<a href="${chinaFullUrl}">【大陆】</a> App Store`;
+    const switchToChinaLink = `› 点此切换至 <a href="${chinaFullUrl}">【大陆】</a> App Store`;
 
     // 【本次修改】组合最终回复，增加提示和切回链接
-    return `注意！仅可浏览，需账号才能下载。\n\n<a href="${fullUrl}">点击切换至【${regionName}】 App Store</a>\n\n${switchToChinaLink}`; // (modified), 
+    return `注意！仅可浏览，需账号才能下载。\n\n<a href="${fullUrl}">› 点击切换至【${regionName}】 App Store</a>\n\n${switchToChinaLink}`; // (modified), 
 } //
 async function handleAvailabilityQuery(appName) {
     const appInfo = await findAppUniversalId(appName);
@@ -282,6 +282,7 @@ async function lookupAppIcon(appName) {
         return '查询应用图标失败，请稍后再试。';
     }
 }
+
 
 
 
