@@ -7,8 +7,6 @@ const axios = require('axios');
 const stringSimilarity = require('string-similarity');
 const { Parser, Builder } = require('xml2js');
 
-// --- 配置区域 ---
-
 const CONFIG = {
     WECHAT_TOKEN: process.env.WECHAT_TOKEN,
     ALL_SUPPORTED_REGIONS: { '阿富汗':'af', '中国':'cn', '阿尔巴尼亚':'al', '阿尔及利亚':'dz', '安哥拉':'ao', '安圭拉':'ai', '安提瓜和巴布达':'ag', '阿根廷':'ar', '亚美尼亚':'am', '澳大利亚':'au', '奥地利':'at', '阿塞拜疆':'az', '巴哈马':'bs', '巴林':'bh', '巴巴多斯':'bb', '白俄罗斯':'by', '比利时':'be', '伯利兹':'bz', '贝宁':'bj', '百慕大':'bm', '不丹':'bt', '玻利维亚':'bo', '波斯尼亚和黑塞哥维那':'ba', '博茨瓦纳':'bw', '巴西':'br', '英属维尔京群岛':'vg', '文莱':'bn', '保加利亚':'bg', '布基纳法索':'bf', '柬埔寨':'kh', '喀麦隆':'cm', '加拿大':'ca', '佛得角':'cv', '开曼群岛':'ky', '乍得':'td', '智利':'cl','哥伦比亚':'co', '哥斯达黎加':'cr', '克罗地亚':'hr', '塞浦路斯':'cy', '捷克':'cz', '科特迪瓦':'ci', '刚果民主共和国':'cd', '丹麦':'dk', '多米尼克':'dm', '多米尼加':'do', '厄瓜多尔':'ec', '埃及':'eg', '萨尔瓦多':'sv', '爱沙尼亚':'ee', '史瓦帝尼':'sz', '斐济':'fj', '芬兰':'fi', '法国':'fr', '加蓬':'ga', '冈比亚':'gm', '格鲁吉亚':'ge', '德国':'de', '加纳':'gh', '希腊':'gr', '格林纳达':'gd', '危地马拉':'gt', '几内亚比绍':'gw', '圭那亚':'gy', '洪都拉斯':'hn', '香港':'hk', '匈牙利':'hu', '冰岛':'is', '印度':'in', '印度尼西亚':'id', '伊拉克':'iq', '爱尔兰':'ie', '以色列':'il', '意大利':'it', '牙买加':'jm', '日本':'jp', '约旦':'jo', '哈萨克斯坦':'kz', '肯尼亚':'ke', '韩国':'kr', '科索沃':'xk', '科威特':'kw', '吉尔吉斯斯坦':'kg', '老挝':'la', '拉脱维亚':'lv', '黎巴嫩':'lb', '利比里亚':'lr', '利比亚':'ly', '立陶宛':'lt', '卢森堡':'lu', '澳门':'mo', '马达加斯加':'mg', '马拉维':'mw', '马来西亚':'my', '马尔代夫':'mv', '马里':'ml', '马耳他':'mt', '毛里塔尼亚':'mr', '毛里求斯':'mu', '墨西哥':'mx', '密克罗尼西亚':'fm', '摩尔多瓦':'md', '蒙古':'mn', '黑山':'me', '蒙特塞拉特':'ms', '摩洛哥':'ma', '莫桑比克':'mz', '缅甸':'mm', '纳米比亚':'na', '瑙鲁':'nr', '尼泊尔':'np', '荷兰':'nl', '新西兰':'nz', '尼加拉瓜':'ni', '尼日尔':'ne', '尼日利亚':'ng', '北马其顿':'mk', '挪威':'no', '阿曼':'om', '巴基斯坦':'pk', '帕劳':'pw', '巴拿马':'pa', '巴布亚新几内亚':'pg', '巴拉圭':'py', '秘鲁':'pe', '菲律宾':'ph', '波兰':'pl', '葡萄牙':'pt', '卡塔尔':'qa', '刚果共和国':'cg', '罗马尼亚':'ro', '俄罗斯':'ru', '卢旺达':'rw', '沙特阿拉伯':'sa', '塞内加尔':'sn', '塞尔维亚':'rs', '塞舌尔':'sc', '塞拉利昂':'sl', '新加坡':'sg', '斯洛伐克':'sk', '斯洛文尼亚':'si', '所罗门群岛':'sb', '南非':'za', '西班牙':'es', '斯里兰卡':'lk', '圣基茨和尼维斯':'kn', '圣卢西亚':'lc', '圣文森特和格林纳丁斯':'vc', '苏里南':'sr', '瑞典':'se', '瑞士':'ch', '圣多美和普林西比':'st', '台湾':'tw', '塔吉克斯坦':'tj', '坦桑尼亚':'tz', '泰国':'th', '汤加':'to', '特立尼达和多巴哥':'tt', '突尼斯':'tn', '土库曼斯坦':'tm', '特克斯和凯科斯群岛':'tc', '土耳其':'tr', '阿联酋':'ae', '乌干达':'ug', '乌克兰':'ua', '英国':'gb', '美国':'us', '乌拉圭':'uy', '乌兹别克斯坦':'uz', '瓦努阿图':'vu', '委内瑞拉':'ve', '越南':'vn', '也门':'ye', '赞比亚':'zm', '津巴布韦':'zw'},
@@ -23,8 +21,6 @@ const TARGET_COUNTRIES_FOR_AVAILABILITY = [
 
 const parser = new Parser({ explicitArray: false, trim: true });
 const builder = new Builder({ cdata: true, rootName: 'xml', headless: true });
-
-// --- 主处理逻辑 ---
 
 module.exports = async (req, res) => {
     if (req.method === 'GET') return handleVerification(req, res);
@@ -51,18 +47,16 @@ async function handlePostRequest(req, res) {
         const parsedXml = await parser.parseStringPromise(rawBody);
         message = parsedXml.xml;
         if (message.MsgType === 'event' && message.Event === 'subscribe') {
-            // 【优化】更新欢迎语以匹配所有最终功能
-            replyContent = `终于等到你，果粉秘密基地~\n\n您可以这样向我提问：\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=查询%20TikTok&msgmenuid=1">查询 TikTok</a>\n查询App全球上架情况\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20Procreate&msgmenuid=2">价格 Procreate</a>\n智能查询App价格(默认美国)\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=榜单%20日本&msgmenuid=3">榜单 日本</a>\n交互式查询榜单\n\n更多功能(如切换地区、取图标)请戳底部菜单栏了解~`;
+
+            replyContent = `恭喜！你发现了果粉秘密基地\n\n您可以这样向我提问：\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式">付款方式</a>\n获取详细地址信息\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=查询%20TikTok&msgmenuid=1">查询 TikTok</a>\n查询 App 全球上架情况\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=榜单%20美国&msgmenuid=3">榜单 美国</a>\n交互式查询榜单\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20Gmail&msgmenuid=2">价格 Gmail</a>\n智能查 App 价格\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=切换%20美国&msgmenuid=4">切换 美国</a>\n一键切换商店地区\n\n› <a href="weixin://bizmsgmenu?msgmenucontent=图标%20QQ&msgmenuid=5">图标 QQ</a>\n获取 App 高清图标\n\n更多服务请戳底部菜单栏了解`; // (modified)
         }
         else if (message.MsgType === 'text') {
             const content = message.Content.trim();
             const chartV2Match = content.match(/^榜单\s+(.+)$/i);
             const chartMatch = content.match(/^(.*?)(免费榜|付费榜)$/);
-            // 【优化】修改价格查询的正则匹配
             const priceMatchAdvanced = content.match(/^价格\s+(.+?)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
             const priceMatchSimple = content.match(/^价格\s+(.+)$/i);
             const switchRegionMatch = content.match(/^(切换|地区)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
-            // 【优化】修改上架查询的指令
             const availabilityMatch = content.match(/^查询\s+(.+)$/i);
 
             if (chartV2Match && isSupportedRegion(chartV2Match[1])) {
@@ -70,7 +64,6 @@ async function handlePostRequest(req, res) {
                 replyContent = await handleChartQuery(regionName, '免费榜');
             } else if (chartMatch && isSupportedRegion(chartMatch[1])) {
                 replyContent = await handleChartQuery(chartMatch[1], chartMatch[2]);
-            // 【优化】价格查询逻辑重构，优先匹配高级指令
             } else if (priceMatchAdvanced && isSupportedRegion(priceMatchAdvanced[2])) {
                 const appName = priceMatchAdvanced[1].trim();
                 const countryName = priceMatchAdvanced[2].trim();
@@ -80,7 +73,6 @@ async function handlePostRequest(req, res) {
                 replyContent = await handlePriceQuery(appName, '美国', true); // isDefaultSearch = true
             } else if (switchRegionMatch && isSupportedRegion(switchRegionMatch[2])) {
                 replyContent = handleRegionSwitch(switchRegionMatch[2].trim());
-            // 【优化】上架查询逻辑使用新指令
             } else if (availabilityMatch) {
                 const appName = availabilityMatch[1].trim();
                 replyContent = await handleAvailabilityQuery(appName);
@@ -101,8 +93,6 @@ async function handlePostRequest(req, res) {
     }
     return res.status(200).send('');
 }
-
-// --- 辅助及核心功能函数 ---
 
 function getRawBody(req) {
     return new Promise((resolve, reject) => {
@@ -167,7 +157,6 @@ async function handleChartQuery(regionName, chartType) {
     } catch (e) { return '获取榜单失败，请稍后再试。'; } 
 }
 
-// 【优化】价格查询函数增加 isDefaultSearch 参数用于判断是否添加小贴士
 async function handlePriceQuery(appName, regionName, isDefaultSearch) {
     const code = getCountryCode(regionName);
     if (!code) return `不支持的地区或格式错误：${regionName}`;
@@ -216,8 +205,6 @@ function handleRegionSwitch(regionName) {
 
     return `<a href="${fullUrl}">点击切换到【${regionName}】App Store</a>`;
 }
-
-// --- 从旧代码移植过来的功能函数 ---
 
 async function handleAvailabilityQuery(appName) {
     const appInfo = await findAppUniversalId(appName);
@@ -288,5 +275,3 @@ async function lookupAppIcon(appName) {
         return '查询应用图标失败，请稍后再试。';
     }
 }
-
-
