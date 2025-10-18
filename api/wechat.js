@@ -199,28 +199,35 @@ function handleRegionSwitch(regionName) {
     const dsf = CONFIG.DSF_MAP[regionCode];
 
     if (!regionCode || !dsf) return '不支持的地区或格式错误。';
-    const stableAppId = '375380948';
+    const stableAppId = '375380948'; // 
     const redirectUrl = `/WebObjects/MZStore.woa/wa/viewSoftware?mt=8&id=${stableAppId}`;
     const fullUrl = `https://itunes.apple.com/WebObjects/MZStore.woa/wa/resetAndRedirect?dsf=${dsf}&cc=${regionCode}&url=${encodeURIComponent(redirectUrl)}`;
 
-    return `<a href="${fullUrl}">点击切换到【${regionName}】App Store</a>`;
-}
+    // 【本次修改】构造切换回大陆的链接
+    const chinaCode = 'cn';
+    const chinaDsf = CONFIG.DSF_MAP[chinaCode];
+    const chinaRedirectUrl = `/WebObjects/MZStore.woa/wa/viewSoftware?mt=8&id=${stableAppId}`; // 可以用同一个稳定App ID
+    const chinaFullUrl = `https://itunes.apple.com/WebObjects/MZStore.woa/wa/resetAndRedirect?dsf=${chinaDsf}&cc=${chinaCode}&url=${encodeURIComponent(chinaRedirectUrl)}`;
+    const switchToChinaLink = `<a href="${chinaFullUrl}">点此切换回大陆的 App Store</a>`;
 
+    // 【本次修改】组合最终回复，增加提示和切回链接
+    return `仅浏览，需账号才能下载\n\n<a href="${fullUrl}">点击切换至【${regionName}】的 App Store</a>\n\n${switchToChinaLink}`; // (modified), 
+} //
 async function handleAvailabilityQuery(appName) {
     const appInfo = await findAppUniversalId(appName);
-    if (!appInfo) {
+    if (!appInfo) { // 
         return `未能在主要地区（美国、中国）的应用商店中找到「${appName}」，请检查应用名称是否正确。`;
-    }
+    } // 
     const availableCountries = await checkAvailability(appInfo.trackId);
-    let replyText = `查询应用：「${appInfo.trackName}」\n\n`;
-    if (availableCountries.length > 0) {
+    // 【本次修改】增加了“最匹配”的措辞前缀
+    let replyText = `您查询的“${appName}”最匹配的结果是：\n\n${appInfo.trackName}\n\n`; // (modified)
+    if (availableCountries.length > 0) { // 
         replyText += `可下载地区：\n${availableCountries.join(', ')}`;
-    } else {
+    } else { // 
         replyText += `在我们查询的12个热门国家/地区中，均未发现此应用上架。`;
-    }
-    return replyText + `\n\n*数据来源 Apple 官方*`;
-}
-
+    } // 
+    return replyText + `\n\n*数据来源 Apple 官方*`; // 
+} //
 async function findAppUniversalId(appName) {
     const usSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=us&entity=software&limit=1`;
     try {
@@ -267,9 +274,9 @@ async function lookupAppIcon(appName) {
         const highResIconUrl = (app.artworkUrl100 || '').replace('100x100bb.jpg', '1024x1024bb.jpg');
         if (!highResIconUrl) return '抱歉，未能获取到该应用的高清图标。';
         
-        const appLink = `<a href="${app.trackViewUrl}">「${app.trackName}」</a>`;
+        const appLink = `<a href="${app.trackViewUrl}">${app.trackName}</a>`;
 
-        return `您搜索的“${appName}”最匹配的结果是：\n\n${appLink}\n\n这是它的高清图标链接(可复制到浏览器打开)：\n${highResIconUrl}\n\n*数据来源 Apple 官方*`;
+        return `您搜索的“${appName}”最匹配的结果是：\n\n${appLink}\n\n这是它的高清图标链接：\n${highResIconUrl}\n\n*数据来源 Apple 官方*`;
     } catch (error) {
         console.error("Error in lookupAppIcon:", error.message);
         return '查询应用图标失败，请稍后再试。';
