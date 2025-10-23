@@ -79,3 +79,47 @@
 npm install -g vercel
 vercel login
 vercel --prod
+----------------------------------------------------------------------------------------------------------------------------------------------
+### 微信公众号后台配置
+
+1.  登录微信公众平台。
+2.  进入 `开发` -> `基本配置`。
+3.  **服务器配置**:
+    * **URL**: 填写您的 Vercel 部署地址，格式通常为 `https://[您的Vercel域名].vercel.app/api/wechat` (确保路径是 `/api/wechat.js` 文件对应的 Serverless Function 路径)。
+    * **Token**: 填写您在 Vercel 环境变量中设置的 `WECHAT_TOKEN` 值。
+    * **EncodingAESKey**: 可以随机生成，本项目未使用消息加密。
+    * **消息加解密方式**: 选择 “明文模式”。
+4.  点击 “提交” 并 **启用** 服务器配置。
+
+## 💬 使用方法 (Usage)
+
+用户只需在您的公众号对话框中发送对应的指令即可，例如：
+
+* 发送 `价格 Procreate` 查询 Procreate 的美国区价格。
+* 发送 `查询 TikTok` 查询 TikTok 的全球上架情况。
+* 发送 `榜单 英国` 查看英国区 App Store 免费榜。
+* 发送 `切换 日本` 获取切换到日本区商店的链接。
+* 发送 `图标 微信` 获取微信的高清图标。
+
+## 🤝 贡献指南 (Contributing)
+
+欢迎对本项目做出贡献！您可以通过以下方式参与：
+
+1.  **报告 Bug**: 发现问题？请通过 GitHub Issues 提交详细描述。
+2.  **功能建议**: 有好的想法？欢迎在 GitHub Issues 中提出。
+3.  **提交代码**:
+    * Fork 本仓库。
+    * 创建您的特性分支 (`git checkout -b feature/AmazingFeature`)。
+    * 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)。
+    * 将分支推送到您的 Fork (`git push origin feature/AmazingFeature`)。
+    * 提交 Pull Request。
+
+## 📄 开源许可 (License)
+
+本项目采用 [MIT](https://opensource.org/licenses/MIT) 许可。详情请见 `LICENSE` 文件。
+
+## 🙏 致谢 (Acknowledgements)
+
+* 感谢 Apple 提供的 iTunes Search API 和 RSS Feed API。
+* 感谢 Vercel 提供的便捷的 Serverless 部署平台。
+* 感谢 `axios`, `xml2js`, `string-similarity` 等优秀的开源库。
