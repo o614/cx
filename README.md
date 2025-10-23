@@ -1,4 +1,4 @@
-# 果粉秘密基地 - 微信公众号 App Store 助手后端
+# 不要艾特我 - 微信公众号 App Store 助手后端
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
