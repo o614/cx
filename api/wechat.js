@@ -160,37 +160,34 @@ async function handleChartQuery(regionName, chartType) {
 async function handlePriceQuery(appName, regionName, isDefaultSearch) {
     const code = getCountryCode(regionName);
     if (!code) return `不支持的地区或格式错误：${regionName}`;
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&entity=software&country=${code}&limit=20`;
+    // 【本次修改】将 limit 从 20 改为 1
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&entity=software&country=${code}&limit=1`; // (modified)
 
     try {
         const response = await axios.get(url);
-        const results = response.data.results || [];
-        if (!results.length) return `在${regionName}未找到“${appName}”。`;
+        const results = response.data.results || []; // 
+        // 【本次修改】直接判断第一个结果是否存在
+        if (!results.length || results.length === 0) return `在${regionName}未找到“${appName}”。`; // (modified)
 
-        const normalize = s => s.trim().toLowerCase().replace(/[\s\-_：:，,\.！!？?]/g, '');
-        const normalizedAppName = normalize(appName);
-        
-        const scored = results.map(r => {
-            const nameScore = stringSimilarity.compareTwoStrings(normalize(r.trackName), normalizedAppName);
-            const popularityScore = Math.log10((r.userRatingCount || 1) + 1);
-            return { app: r, totalScore: nameScore * 0.8 + (popularityScore / 10) * 0.2 };
-        });
-        scored.sort((a, b) => b.totalScore - a.totalScore);
-        
-        const bestMatch = scored[0].app;
-        const price = bestMatch.price === 0 ? '免费' : `${bestMatch.currency} ${bestMatch.price.toFixed(2)}`;
-        const link = `<a href="${bestMatch.trackViewUrl}">${bestMatch.trackName}</a>`;
-        
-        let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n${link}\n\n地区：${regionName}\n价格：${price}\n时间：${getFormattedTime()}`;
+        // 【本次修改】删除 normalize, scored, scored.sort 相关代码 (deleted)
 
-        if (isDefaultSearch) {
+        // 【本次修改】直接使用第一个结果
+        const bestMatch = results[0]; // (modified)
+        const price = bestMatch.price === 0 ? '免费' : `${bestMatch.currency} ${bestMatch.price.toFixed(2)}`; // (adjusted)
+        // 【本次修改】从 bestMatch 获取 trackName 和 trackViewUrl
+        const link = `<a href="${bestMatch.trackViewUrl}">${bestMatch.trackName}</a>`; // (adjusted)
+
+        // 回复文本构建逻辑保持不变
+        let replyText = `您搜索的“${appName}”最匹配的结果是：\n\n${link}\n\n地区：${regionName}\n价格：${price}\n时间：${getFormattedTime()}`; // 
+
+        if (isDefaultSearch) { // 
             replyText += `\n\n想查其他地区？试试发送：\n价格 ${appName} 日本`;
-        }
-        
-        replyText += `\n\n*数据来源 Apple 官方*`;
-        return replyText;
+        } // 
+
+        replyText += `\n\n*数据来源 Apple 官方*`; // 
+        return replyText; // 
     } catch {
-        return '查询价格失败，请稍后再试。';
+        return '查询价格失败，请稍后再试。'; // 
     }
 }
 
@@ -282,6 +279,7 @@ async function lookupAppIcon(appName) {
         return '查询应用图标失败，请稍后再试。';
     }
 }
+
 
 
 
