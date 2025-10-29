@@ -251,7 +251,7 @@ function handleRegionSwitch(regionName) {
   const cnDsf = CONFIG.DSF_MAP[cnCode];
   const cnUrl = `https://itunes.apple.com/WebObjects/MZStore.woa/wa/resetAndRedirect?dsf=${cnDsf}&cc=${cnCode}&url=${encodeURIComponent(redirect)}`;
 
-  return `注意！仅可浏览，需账号才能下载。\n\n<a href="${fullUrl}">› 点击切换至【${regionName}】 App Store</a>\n\n› 点此切换至 <a href="${cnUrl}">【大陆】</a> App Store\n\n*出现无法连接后跳转*`;
+  return `注意！仅浏览，需账号才能下载。\n\n<a href="${fullUrl}">› 点击切换至【${regionName}】 App Store</a>\n\n› 点此切换至 <a href="${cnUrl}">【大陆】</a> App Store\n\n*出现“无法连接”后将自动跳转*`;
 }
 
 async function handleAvailabilityQuery(appName) {
@@ -317,4 +317,5 @@ async function lookupAppIcon(appName) {
     return '查询应用图标失败，请稍后再试。';
   }
 }
+
 
