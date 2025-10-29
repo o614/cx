@@ -78,7 +78,7 @@ async function handlePostRequest(req, res) {
       const priceMatchSimple = content.match(/^价格\s+(.+)$/i);
       const switchRegionMatch = content.match(/^(切换|地区)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
       const availabilityMatch = content.match(/^查询\s+(.+)$/i);
-      const osAllMatch = /^系统更新$/i;
+      const osAllMatch = /^系统更新$/i.test(content);
       const osUpdateMatch = content.match(/^更新\s*(iOS|iPadOS|macOS|watchOS|tvOS|visionOS)?$/i);
 
 
@@ -90,12 +90,11 @@ async function handlePostRequest(req, res) {
         replyContent = await handlePriceQuery(priceMatchAdvanced[1].trim(), priceMatchAdvanced[2].trim(), false);
       } else if (priceMatchSimple) {
         replyContent = await handlePriceQuery(priceMatchSimple[1].trim(), '美国', true);
-        if (osAllMatch) {
+      } else if (osAllMatch) {
         replyContent = await handleSimpleAllOsUpdates();
       } else if (osUpdateMatch) {
         const platform = (osUpdateMatch[1] || 'iOS').trim();
         replyContent = await handleDetailedOsUpdate(platform);
-      }
       } else if (switchRegionMatch && isSupportedRegion(switchRegionMatch[2])) {
         replyContent = handleRegionSwitch(switchRegionMatch[2].trim());
       } else if (availabilityMatch) {
@@ -333,6 +332,40 @@ async function lookupAppIcon(appName) {
     return '查询应用图标失败，请稍后再试。';
   }
 }
+
+// ============ 新增：GDMF 基础获取与工具函数（系统更新功能依赖） ============
+async function fetchGdmf() {
+  const url = 'https://gdmf.apple.com/v2/pmv';
+  try {
+    const { data } = await axios.get(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Serverless-WeChatBot)' },
+      timeout: 6000
+    });
+    return data;
+  } catch (e) {
+    console.error('fetchGdmf failed:', e.message || e);
+    throw e;
+  }
+}
+
+function normalizePlatform(p) {
+  const k = String(p || '').toLowerCase();
+  if (['ios','iphoneos','iphone'].includes(k)) return 'iOS';
+  if (['ipados','ipad'].includes(k)) return 'iPadOS';
+  if (['macos','mac','osx'].includes(k)) return 'macOS';
+  if (['watchos','watch'].includes(k)) return 'watchOS';
+  if (['tvos','apple tv','tv'].includes(k)) return 'tvOS';
+  if (['visionos','vision'].includes(k)) return 'visionOS';
+  return null;
+}
+
+function toBeijingYMD(s) {
+  if (!s) return '';
+  const d = new Date(s); if (isNaN(d)) return '';
+  const bj = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+  const y = bj.getFullYear(), m = String(bj.getMonth()+1).padStart(2,'0'), d2 = String(bj.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d2}`;
+}
 // ===================== 系统更新功能 =====================
 
 // 简洁总览
@@ -377,7 +410,7 @@ async function handleDetailedOsUpdate(inputPlatform = 'iOS') {
       return `• ${r.os} ${r.version} (${r.build})${t?` — ${t}`:''}`;
     });
 
-    return `${platform} 最新公开版本：\n版本：${latest.version}（${latest.build}）${stableTag}\n发布时间：${toBeijingYMD(latest.date)||getFormattedTime()}\n\n近期版本：\n${lines.join('\n')}\n\n*数据来源 Apple 官方*`;
+    return `${platform} 最新公开版本：\n版本：${latest.version}（${latest.build}）${stableTag}\n发布时间：${toBeijingYMD(latest.date)||getFormattedTime()}\n\n近期版本：\n${lines.join('\n')}\n\n${SOURCE_NOTE}`;
   } catch {
     return '查询系统版本失败，请稍后再试。';
   }
@@ -412,7 +445,3 @@ function collectReleases(data, platform) {
   return releases.filter(r => r.os === platform);
 }
 // ===================== END =====================
-
-
-
-
