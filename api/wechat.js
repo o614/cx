@@ -5,6 +5,8 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { Parser, Builder } = require('xml2js');
+const https = require('https'); // 新增：为 GDMF 访问增加 IPv4/Keep-Alive 能力
+const dns = require('dns');     // 新增：为 GDMF 访问提供自定义 lookup（强制 IPv4）
 
 const CONFIG = {
   WECHAT_TOKEN: process.env.WECHAT_TOKEN,
@@ -334,17 +336,46 @@ async function lookupAppIcon(appName) {
 }
 
 // ============ 新增：GDMF 基础获取与工具函数（系统更新功能依赖） ============
+
+// 修复：对 GDMF 增强兼容（Accept 头 + 两段式重试 + 强制 IPv4）
 async function fetchGdmf() {
   const url = 'https://gdmf.apple.com/v2/pmv';
+
+  // 自定义 IPv4 lookup（很多云环境到苹果网络 IPv6 不通）
+  const lookupIPv4 = (hostname, options, cb) => {
+    return dns.lookup(hostname, { family: 4, all: false }, cb);
+  };
+
+  // 尝试1：使用项目内 HTTP 实例，请求头补齐 Accept
+  const headersA = {
+    ...HTTP.defaults.headers.common,
+    'Accept': 'application/json'
+  };
+
+  // 尝试2：换成 iPhone Safari UA，强制 IPv4 + KeepAlive
+  const headersB = {
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    'Accept': 'application/json'
+  };
+  const agent = new https.Agent({ keepAlive: true });
+
   try {
-    const { data } = await axios.get(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Serverless-WeChatBot)' },
-      timeout: 6000
-    });
+    const { data } = await HTTP.get(url, { timeout: 8000, headers: headersA });
     return data;
-  } catch (e) {
-    console.error('fetchGdmf failed:', e.message || e);
-    throw e;
+  } catch (e1) {
+    console.warn('fetchGdmf try#1 failed:', e1 && (e1.code || e1.message));
+    try {
+      const { data } = await axios.get(url, {
+        timeout: 10000,
+        headers: headersB,
+        httpsAgent: agent,
+        lookup: lookupIPv4
+      });
+      return data;
+    } catch (e2) {
+      console.error('fetchGdmf try#2 failed:', e2 && (e2.code || e2.message));
+      throw e2;
+    }
   }
 }
 
@@ -444,4 +475,3 @@ function collectReleases(data, platform) {
   walk(data, null);
   return releases.filter(r => r.os === platform);
 }
-// ===================== END =====================
