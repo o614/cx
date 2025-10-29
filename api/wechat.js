@@ -291,7 +291,7 @@ async function handleAvailabilityQuery(appName) {
   let replyText = `您查询的“${appName}”最匹配的结果是：\n\n${appInfo.trackName}\n\n`;
   replyText += availableCountries.length
     ? `可下载地区：\n${availableCountries.join(', ')}`
-    : `在我们查询的12个热门国家/地区中，均未发现此应用上架。`;
+    : `在我们查询的热门地区中，均未发现此应用上架。`;
   return replyText + `\n\n${SOURCE_NOTE}`;
 }
 
@@ -418,7 +418,7 @@ async function handleSimpleAllOsUpdates() {
       }
     }
     if (!results.length) return '暂未获取到系统版本信息，请稍后再试。';
-    return `最新系统版本：\n\n${results.join('\n')}\n\n如需查看详细版本，请发送：\n更新 iOS、更新 macOS、更新 watchOS\n\n*数据来源 Apple 官方*`;
+    return `最新系统版本：\n\n${results.join('\n')}\n\n如需查看详细版本，请发送：\n更新 iOS、更新 macOS、更新 watchOS...\n\n*数据来源 Apple 官方*`;
   } catch (e) { // 捕获 fetchGdmf 或 collectReleases 抛出的错误
     console.error('Error in handleSimpleAllOsUpdates:', e.message || e); // 记录具体错误
     return '查询系统版本失败，请稍后再试。'; // 统一返回用户友好的失败提示
@@ -542,3 +542,4 @@ function determinePlatformsFromDevices(devices) {
 
     return platforms;
 }
+
