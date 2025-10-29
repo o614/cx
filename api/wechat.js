@@ -1,13 +1,13 @@
 /**
  * WeChat Official Account Serverless Function
  * v8.1 — 更稳的网络层、修复地区匹配、价格查询轻量匹配、统一回复构建
- * v8.3 — 修复系统更新功能 SSL 证书验证错误
+ * v8.4 — 修复系统更新功能数据解析及优化用户体验
  */
 const crypto = require('crypto');
 const axios = require('axios');
 const { Parser, Builder } = require('xml2js');
-const https = require('https'); // 【新增】为 GDMF 访问增加 SSL 处理能力
-// const dns = require('dns');     // 【已按要求移除】
+const https = require('https'); // 为 GDMF 访问增加 SSL 处理能力
+// const dns = require('dns'); // 已移除
 
 const CONFIG = {
   WECHAT_TOKEN: process.env.WECHAT_TOKEN,
@@ -64,6 +64,7 @@ async function handlePostRequest(req, res) {
     const parsedXml = await parser.parseStringPromise(rawBody);
     message = parsedXml.xml || {};
 
+    // 欢迎语等非系统更新功能代码保持不变
     if (message.MsgType === 'event' && message.Event === 'subscribe') {
       replyContent =
         `恭喜！你发现了果粉秘密基地\n\n` +
@@ -81,8 +82,8 @@ async function handlePostRequest(req, res) {
       const priceMatchSimple = content.match(/^价格\s+(.+)$/i);
       const switchRegionMatch = content.match(/^(切换|地区)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
       const availabilityMatch = content.match(/^查询\s+(.+)$/i);
-      const osAllMatch = /^系统更新$/i.test(content);
-      const osUpdateMatch = content.match(/^更新\s*(iOS|iPadOS|macOS|watchOS|tvOS|visionOS)?$/i);
+      const osAllMatch = /^系统更新$/i.test(content); // 系统更新指令匹配保持不变
+      const osUpdateMatch = content.match(/^更新\s*(iOS|iPadOS|macOS|watchOS|tvOS|visionOS)?$/i); // 系统更新指令匹配保持不变
 
 
       if (chartV2Match && isSupportedRegion(chartV2Match[1])) {
@@ -93,6 +94,7 @@ async function handlePostRequest(req, res) {
         replyContent = await handlePriceQuery(priceMatchAdvanced[1].trim(), priceMatchAdvanced[2].trim(), false);
       } else if (priceMatchSimple) {
         replyContent = await handlePriceQuery(priceMatchSimple[1].trim(), '美国', true);
+      // 系统更新指令处理逻辑保持不变
       } else if (osAllMatch) {
         replyContent = await handleSimpleAllOsUpdates();
       } else if (osUpdateMatch) {
@@ -118,6 +120,7 @@ async function handlePostRequest(req, res) {
   return res.status(200).send('');
 }
 
+// getRawBody 函数保持不变
 function getRawBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -127,6 +130,7 @@ function getRawBody(req) {
   });
 }
 
+// getCountryCode 函数保持不变
 function getCountryCode(identifier) {
   const trimmed = String(identifier || '').trim();
   const key = trimmed.toLowerCase();
@@ -139,10 +143,12 @@ function getCountryCode(identifier) {
   return '';
 }
 
+// isSupportedRegion 函数保持不变
 function isSupportedRegion(identifier) {
   return !!getCountryCode(identifier);
 }
 
+// getFormattedTime 函数保持不变
 function getFormattedTime() {
   const now = new Date();
   const bj = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
@@ -154,6 +160,7 @@ function getFormattedTime() {
   return `${yyyy.slice(-2)}/${mm}/${dd} ${hh}:${mi}`;
 }
 
+// buildTextReply 函数保持不变
 function buildTextReply(toUser, fromUser, content) {
   const payload = {
     ToUserName: toUser,
@@ -165,6 +172,7 @@ function buildTextReply(toUser, fromUser, content) {
   return builder.buildObject(payload);
 }
 
+// getJSON 函数保持不变
 async function getJSON(url, { timeout = 6000, retries = 1 } = {}) {
   let lastErr;
   for (let i = 0; i <= retries; i++) {
@@ -179,6 +187,7 @@ async function getJSON(url, { timeout = 6000, retries = 1 } = {}) {
   throw lastErr;
 }
 
+// handleChartQuery 函数保持不变
 async function handleChartQuery(regionName, chartType) {
   const regionCode = getCountryCode(regionName);
   if (!regionCode) return '不支持的地区或格式错误。';
@@ -211,21 +220,18 @@ async function handleChartQuery(regionName, chartType) {
   }
 }
 
+// pickBestMatch 函数保持不变
 function pickBestMatch(query, results) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return results[0];
-
-  // 完全相等（忽略大小写）
   const exact = results.find(r => String(r.trackName || '').toLowerCase() === q);
   if (exact) return exact;
-
-  // 包含关系优先
   const contains = results.find(r => String(r.trackName || '').toLowerCase().includes(q));
   if (contains) return contains;
-
   return results[0];
 }
 
+// formatPrice 函数保持不变
 function formatPrice(r) {
   if (r.formattedPrice) return r.formattedPrice.replace(/^Free$/i, '免费');
   if (typeof r.price === 'number') {
@@ -234,6 +240,7 @@ function formatPrice(r) {
   return '未知';
 }
 
+// handlePriceQuery 函数保持不变
 async function handlePriceQuery(appName, regionName, isDefaultSearch) {
   const code = getCountryCode(regionName);
   if (!code) return `不支持的地区或格式错误：${regionName}`;
@@ -256,6 +263,7 @@ async function handlePriceQuery(appName, regionName, isDefaultSearch) {
   }
 }
 
+// handleRegionSwitch 函数保持不变
 function handleRegionSwitch(regionName) {
   const regionCode = getCountryCode(regionName);
   const dsf = CONFIG.DSF_MAP[regionCode];
@@ -272,6 +280,7 @@ function handleRegionSwitch(regionName) {
   return `注意！仅可浏览，需账号才能下载。\n\n<a href="${fullUrl}">› 点击切换至【${regionName}】 App Store</a>\n\n› 点此切换至 <a href="${cnUrl}">【大陆】</a> App Store\n\n*出现“无法连接”后将自动跳转*`;
 }
 
+// handleAvailabilityQuery 函数保持不变
 async function handleAvailabilityQuery(appName) {
   const appInfo = await findAppUniversalId(appName);
   if (!appInfo) {
@@ -285,6 +294,7 @@ async function handleAvailabilityQuery(appName) {
   return replyText + `\n\n${SOURCE_NOTE}`;
 }
 
+// findAppUniversalId 函数保持不变
 async function findAppUniversalId(appName) {
   const endpoints = [
     `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=us&entity=software&limit=1`,
@@ -304,6 +314,7 @@ async function findAppUniversalId(appName) {
   return null;
 }
 
+// checkAvailability 函数保持不变
 async function checkAvailability(trackId) {
   const promises = TARGET_COUNTRIES_FOR_AVAILABILITY.map(c =>
     getJSON(`https://itunes.apple.com/lookup?id=${trackId}&country=${c.code}`, { timeout: 4000 })
@@ -318,6 +329,7 @@ async function checkAvailability(trackId) {
   return available;
 }
 
+// lookupAppIcon 函数保持不变
 async function lookupAppIcon(appName) {
   try {
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(appName)}&country=us&entity=software&limit=1`;
@@ -336,7 +348,7 @@ async function lookupAppIcon(appName) {
   }
 }
 
-// ============ 新增：GDMF 基础获取与工具函数（系统更新功能依赖） ============
+// ============ 【以下为系统更新功能相关代码，已进行修改】 ============
 
 // 【修复 v8.3】增加 rejectUnauthorized: false 以处理 SELF_SIGNED_CERT_IN_CHAIN 错误
 async function fetchGdmf() {
@@ -402,35 +414,37 @@ function toBeijingYMD(s) {
 }
 // ===================== 系统更新功能 =====================
 
-// 简洁总览
+// 简洁总览 (保持不变)
 async function handleSimpleAllOsUpdates() {
   try {
     const data = await fetchGdmf();
     const platforms = ['iOS','iPadOS','macOS','watchOS','tvOS','visionOS'];
     const results = [];
     for (const p of platforms) {
-      const list = collectReleases(data, p);
+      const list = collectReleases(data, p); // 调用已修复的 collectReleases
       if (list.length) {
+        // 按版本号数字排序找到最新
         const latest = list.sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}))[0];
         results.push(`• ${p} ${latest.version}`);
       }
     }
     if (!results.length) return '暂未获取到系统版本信息，请稍后再试。';
     return `最新系统版本：\n\n${results.join('\n')}\n\n如需查看详细版本，请发送：\n更新 iOS、更新 macOS、更新 watchOS\n\n*数据来源 Apple 官方*`;
-  } catch {
-    return '查询系统版本失败，请稍后再试。';
+  } catch (e) { // 捕获 fetchGdmf 或 collectReleases 抛出的错误
+    console.error('Error in handleSimpleAllOsUpdates:', e.message || e); // 记录具体错误
+    return '查询系统版本失败，请稍后再试。'; // 统一返回用户友好的失败提示
   }
 }
 
-// 单系统详细（含 beta/rc）
+// 单系统详细（含 beta/rc）- 【已进行用户体验优化】
 async function handleDetailedOsUpdate(inputPlatform = 'iOS') {
   const platform = normalizePlatform(inputPlatform) || 'iOS';
   try {
     const data = await fetchGdmf();
-    const list = collectReleases(data, platform);
+    const list = collectReleases(data, platform); // 调用已修复的 collectReleases
     if (!list.length) return `${platform} 暂无版本信息。`;
 
-    // 排序：时间或版本
+    // 排序：优先按日期降序，日期相同按版本号降序
     list.sort((a,b)=>{
       const da = new Date(a.date||0), db = new Date(b.date||0);
       if (db - da !== 0) return db - da;
@@ -439,43 +453,76 @@ async function handleDetailedOsUpdate(inputPlatform = 'iOS') {
 
     const latest = list[0];
     const stableTag = /beta|rc|seed/i.test(JSON.stringify(latest.raw)) ? '' : ' — 正式版';
+
+    // 【优化】统一最新版本的发布时间格式为 YY/MM/DD HH:MI
+    let latestDateStr = '';
+    if (latest.date) {
+        const d = new Date(latest.date);
+        if (!isNaN(d)) {
+            const bj = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+            const yyyy = String(bj.getFullYear());
+            const mm = String(bj.getMonth() + 1).padStart(2, '0');
+            const dd = String(bj.getDate()).padStart(2, '0');
+            const hh = String(bj.getHours()).padStart(2, '0');
+            const mi = String(bj.getMinutes()).padStart(2, '0');
+            latestDateStr = `${yyyy.slice(-2)}/${mm}/${dd} ${hh}:${mi}`;
+        }
+    }
+    if (!latestDateStr) latestDateStr = getFormattedTime(); // Fallback to current time if date invalid
+
+
+    // 【优化】在近期版本列表中明确标记 Beta/RC
     const lines = list.slice(0,5).map(r=>{
-      const t = toBeijingYMD(r.date);
-      return `• ${r.os} ${r.version} (${r.build})${t?` — ${t}`:''}`;
+      const t = toBeijingYMD(r.date); // 列表日期保持 YYYY-MM-DD 格式
+      // 添加 Beta/RC 标签
+      const releaseTag = /beta/i.test(JSON.stringify(r.raw)) ? ' (Beta)' :
+                         /rc|seed/i.test(JSON.stringify(r.raw)) ? ' (RC)' : '';
+      return `• ${r.os} ${r.version} (${r.build})${releaseTag}${t?` — ${t}`:''}`; // 附加标签
     });
 
-    return `${platform} 最新公开版本：\n版本：${latest.version}（${latest.build}）${stableTag}\n发布时间：${toBeijingYMD(latest.date)||getFormattedTime()}\n\n近期版本：\n${lines.join('\n')}\n\n${SOURCE_NOTE}`;
-  } catch {
-    return '查询系统版本失败，请稍后再试。';
+    return `${platform} 最新公开版本：\n版本：${latest.version}（${latest.build}）${stableTag}\n发布时间：${latestDateStr}\n\n近期版本：\n${lines.join('\n')}\n\n${SOURCE_NOTE}`;
+  } catch (e) { // 捕获 fetchGdmf 或 collectReleases 抛出的错误
+    console.error('Error in handleDetailedOsUpdate:', e.message || e); // 记录具体错误
+    return '查询系统版本失败，请稍后再试。'; // 统一返回用户友好的失败提示
   }
 }
 
-// 提取通用解析逻辑
+// 【已修复 v8.4】优化 GDMF 解析逻辑以兼容 macOS 等平台结构
 function collectReleases(data, platform) {
   const releases = [];
-  function walk(node, ctxOS) {
-    if (!node || typeof node !== 'object') return;
-    let os = ctxOS;
-    for (const [k, v] of Object.entries(node)) {
-      if (typeof v === 'string') {
-        const maybe = normalizePlatform(v);
-        if (maybe) os = maybe;
+  const targetOS = normalizePlatform(platform);
+  if (!targetOS || !data) return releases;
+
+  const assetSetNames = ['PublicAssetSets', 'AssetSets'];
+  const foundBuilds = new Set();
+
+  for (const setName of assetSetNames) {
+    const assetSet = data[setName];
+    if (assetSet && typeof assetSet === 'object') {
+      let platformKey = null;
+      for (const key in assetSet) {
+          if (normalizePlatform(key) === targetOS) {
+              platformKey = key;
+              break;
+          }
       }
-      if (typeof k === 'string') {
-        const maybeKey = normalizePlatform(k);
-        if (maybeKey && !os) os = maybeKey;
+
+      if (platformKey && Array.isArray(assetSet[platformKey])) {
+        assetSet[platformKey].forEach(node => {
+          if (node && typeof node === 'object') {
+            const version = node.ProductVersion || node.OSVersion || node.SystemVersion || null;
+            const build   = node.Build || node.BuildID || node.BuildVersion || null;
+            const dateStr = node.PostingDate || node.ReleaseDate || node.Date || node.PublishedDate || node.PublicationDate || null;
+
+            if (version && build && !foundBuilds.has(build)) {
+              releases.push({ os: targetOS, version, build, date: dateStr, raw: node });
+              foundBuilds.add(build);
+            }
+          }
+        });
       }
-    }
-    const version = node.ProductVersion || node.OSVersion || node.SystemVersion || null;
-    const build   = node.Build || node.BuildID || node.BuildVersion || null;
-    const dateStr = node.PostingDate || node.ReleaseDate || node.Date || node.PublishedDate || node.PublicationDate || null;
-    if (os && version && build) releases.push({ os, version, build, date: dateStr, raw: node });
-    for (const val of Object.values(node)) {
-      if (Array.isArray(val)) val.forEach(x => walk(x, os));
-      else if (val && typeof val === 'object') walk(val, os);
     }
   }
-  walk(data, null);
-  return releases.filter(r => r.os === platform);
+  return releases;
 }
 // ===================== END =====================
