@@ -78,6 +78,9 @@ async function handlePostRequest(req, res) {
       const priceMatchSimple = content.match(/^价格\s+(.+)$/i);
       const switchRegionMatch = content.match(/^(切换|地区)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
       const availabilityMatch = content.match(/^查询\s+(.+)$/i);
+      const osAllMatch = /^系统更新$/i;
+      const osUpdateMatch = content.match(/^更新\s*(iOS|iPadOS|macOS|watchOS|tvOS|visionOS)?$/i);
+
 
       if (chartV2Match && isSupportedRegion(chartV2Match[1])) {
         replyContent = await handleChartQuery(chartV2Match[1].trim(), '免费榜');
@@ -87,6 +90,12 @@ async function handlePostRequest(req, res) {
         replyContent = await handlePriceQuery(priceMatchAdvanced[1].trim(), priceMatchAdvanced[2].trim(), false);
       } else if (priceMatchSimple) {
         replyContent = await handlePriceQuery(priceMatchSimple[1].trim(), '美国', true);
+        if (osAllMatch) {
+        replyContent = await handleSimpleAllOsUpdates();
+      } else if (osUpdateMatch) {
+        const platform = (osUpdateMatch[1] || 'iOS').trim();
+        replyContent = await handleDetailedOsUpdate(platform);
+      }
       } else if (switchRegionMatch && isSupportedRegion(switchRegionMatch[2])) {
         replyContent = handleRegionSwitch(switchRegionMatch[2].trim());
       } else if (availabilityMatch) {
@@ -324,6 +333,86 @@ async function lookupAppIcon(appName) {
     return '查询应用图标失败，请稍后再试。';
   }
 }
+// ===================== 系统更新功能 =====================
+
+// 简洁总览
+async function handleSimpleAllOsUpdates() {
+  try {
+    const data = await fetchGdmf();
+    const platforms = ['iOS','iPadOS','macOS','watchOS','tvOS','visionOS'];
+    const results = [];
+    for (const p of platforms) {
+      const list = collectReleases(data, p);
+      if (list.length) {
+        const latest = list.sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}))[0];
+        results.push(`• ${p} ${latest.version}`);
+      }
+    }
+    if (!results.length) return '暂未获取到系统版本信息，请稍后再试。';
+    return `最新系统版本：\n\n${results.join('\n')}\n\n如需查看详细版本，请发送：\n更新 iOS、更新 macOS、更新 watchOS\n\n*数据来源 Apple 官方*`;
+  } catch {
+    return '查询系统版本失败，请稍后再试。';
+  }
+}
+
+// 单系统详细（含 beta/rc）
+async function handleDetailedOsUpdate(inputPlatform = 'iOS') {
+  const platform = normalizePlatform(inputPlatform) || 'iOS';
+  try {
+    const data = await fetchGdmf();
+    const list = collectReleases(data, platform);
+    if (!list.length) return `${platform} 暂无版本信息。`;
+
+    // 排序：时间或版本
+    list.sort((a,b)=>{
+      const da = new Date(a.date||0), db = new Date(b.date||0);
+      if (db - da !== 0) return db - da;
+      return b.version.localeCompare(a.version,undefined,{numeric:true});
+    });
+
+    const latest = list[0];
+    const stableTag = /beta|rc|seed/i.test(JSON.stringify(latest.raw)) ? '' : ' — 正式版';
+    const lines = list.slice(0,5).map(r=>{
+      const t = toBeijingYMD(r.date);
+      return `• ${r.os} ${r.version} (${r.build})${t?` — ${t}`:''}`;
+    });
+
+    return `${platform} 最新公开版本：\n版本：${latest.version}（${latest.build}）${stableTag}\n发布时间：${toBeijingYMD(latest.date)||getFormattedTime()}\n\n近期版本：\n${lines.join('\n')}\n\n*数据来源 Apple 官方*`;
+  } catch {
+    return '查询系统版本失败，请稍后再试。';
+  }
+}
+
+// 提取通用解析逻辑
+function collectReleases(data, platform) {
+  const releases = [];
+  function walk(node, ctxOS) {
+    if (!node || typeof node !== 'object') return;
+    let os = ctxOS;
+    for (const [k, v] of Object.entries(node)) {
+      if (typeof v === 'string') {
+        const maybe = normalizePlatform(v);
+        if (maybe) os = maybe;
+      }
+      if (typeof k === 'string') {
+        const maybeKey = normalizePlatform(k);
+        if (maybeKey && !os) os = maybeKey;
+      }
+    }
+    const version = node.ProductVersion || node.OSVersion || node.SystemVersion || null;
+    const build   = node.Build || node.BuildID || node.BuildVersion || null;
+    const dateStr = node.PostingDate || node.ReleaseDate || node.Date || node.PublishedDate || node.PublicationDate || null;
+    if (os && version && build) releases.push({ os, version, build, date: dateStr, raw: node });
+    for (const val of Object.values(node)) {
+      if (Array.isArray(val)) val.forEach(x => walk(x, os));
+      else if (val && typeof val === 'object') walk(val, os);
+    }
+  }
+  walk(data, null);
+  return releases.filter(r => r.os === platform);
+}
+// ===================== END =====================
+
 
 
 
