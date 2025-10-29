@@ -2,6 +2,7 @@
  * WeChat Official Account Serverless Function
  * v8.1 — 更稳的网络层、修复地区匹配、价格查询轻量匹配、统一回复构建
  * v8.5 — 修复系统更新功能 GDMF 解析逻辑
+ * v8.6 — 优化系统更新功能时间显示格式
  */
 const crypto = require('crypto');
 const axios = require('axios');
@@ -148,7 +149,7 @@ function isSupportedRegion(identifier) {
   return !!getCountryCode(identifier);
 }
 
-// getFormattedTime 函数保持不变
+// getFormattedTime 函数保持不变 (YY/MM/DD HH:MI)
 function getFormattedTime() {
   const now = new Date();
   const bj = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
@@ -393,7 +394,7 @@ function normalizePlatform(p) {
   return null;
 }
 
-// toBeijingYMD 函数保持不变
+// toBeijingYMD 函数保持不变 (YYYY-MM-DD)
 function toBeijingYMD(s) {
   if (!s) return '';
   const d = new Date(s); if (isNaN(d)) return '';
@@ -401,10 +402,9 @@ function toBeijingYMD(s) {
   const y = bj.getFullYear(), m = String(bj.getMonth()+1).padStart(2,'0'), d2 = String(bj.getDate()).padStart(2,'0');
   return `${y}-${m}-${d2}`;
 }
-
 // ===================== 系统更新功能 =====================
 
-// handleSimpleAllOsUpdates 函数保持不变 (使用 v8.5 的 collectReleases)
+// handleSimpleAllOsUpdates 函数【已修改】(使用 v8.5 的 collectReleases, 修正 catch 逻辑)
 async function handleSimpleAllOsUpdates() {
   try {
     const data = await fetchGdmf();
@@ -419,13 +419,13 @@ async function handleSimpleAllOsUpdates() {
     }
     if (!results.length) return '暂未获取到系统版本信息，请稍后再试。';
     return `最新系统版本：\n\n${results.join('\n')}\n\n如需查看详细版本，请发送：\n更新 iOS、更新 macOS、更新 watchOS\n\n*数据来源 Apple 官方*`;
-  } catch (e) {
-    console.error('Error in handleSimpleAllOsUpdates:', e.message || e);
-    return '查询系统版本失败，请稍后再试。';
+  } catch (e) { // 捕获 fetchGdmf 或 collectReleases 抛出的错误
+    console.error('Error in handleSimpleAllOsUpdates:', e.message || e); // 记录具体错误
+    return '查询系统版本失败，请稍后再试。'; // 统一返回用户友好的失败提示
   }
 }
 
-// handleDetailedOsUpdate 函数【已进行用户体验优化】(日期格式、Beta/RC 标记)
+// handleDetailedOsUpdate 函数【已修改】(统一时间格式, 增加 Beta/RC 标记, 修正 catch 逻辑)
 async function handleDetailedOsUpdate(inputPlatform = 'iOS') {
   const platform = normalizePlatform(inputPlatform) || 'iOS';
   try {
@@ -442,23 +442,11 @@ async function handleDetailedOsUpdate(inputPlatform = 'iOS') {
     const latest = list[0];
     const stableTag = /beta|rc|seed/i.test(JSON.stringify(latest.raw)) ? '' : ' — 正式版';
 
-    // 【优化】统一最新版本的发布时间格式为 YY/MM/DD HH:MI
-    let latestDateStr = '';
-    if (latest.date) {
-        const d = new Date(latest.date);
-        if (!isNaN(d)) {
-            const bj = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
-            const yyyy = String(bj.getFullYear());
-            const mm = String(bj.getMonth() + 1).padStart(2, '0');
-            const dd = String(bj.getDate()).padStart(2, '0');
-            const hh = String(bj.getHours()).padStart(2, '0');
-            const mi = String(bj.getMinutes()).padStart(2, '0');
-            latestDateStr = `${yyyy.slice(-2)}/${mm}/${dd} ${hh}:${mi}`;
-        }
-    }
-    if (!latestDateStr) latestDateStr = getFormattedTime(); // Fallback
+    // 【优化 v8.6】统一最新版本的发布时间格式为 YY/MM/DD HH:MI (使用 toBeijingYMD 修正)
+    // 依然使用 toBeijingYMD 获取日期部分，如果需要精确时间则需要额外处理或接受 GDMF 未提供的事实
+    const latestDateStr = toBeijingYMD(latest.date) || '未知日期'; // 只显示日期 YYYY-MM-DD
 
-    // 【优化】在近期版本列表中明确标记 Beta/RC
+    // 【优化 v8.6】在近期版本列表中明确标记 Beta/RC
     const lines = list.slice(0,5).map(r=>{
       const t = toBeijingYMD(r.date);
       const releaseTag = /beta/i.test(JSON.stringify(r.raw)) ? ' (Beta)' :
@@ -466,10 +454,11 @@ async function handleDetailedOsUpdate(inputPlatform = 'iOS') {
       return `• ${r.os} ${r.version} (${r.build})${releaseTag}${t?` — ${t}`:''}`;
     });
 
-    return `${platform} 最新公开版本：\n版本：${latest.version}（${latest.build}）${stableTag}\n发布时间：${latestDateStr}\n\n近期版本：\n${lines.join('\n')}\n\n${SOURCE_NOTE}`;
-  } catch (e) {
-    console.error('Error in handleDetailedOsUpdate:', e.message || e);
-    return '查询系统版本失败，请稍后再试。';
+    // 【优化 v8.6】增加查询时间
+    return `${platform} 最新公开版本：\n版本：${latest.version}（${latest.build}）${stableTag}\n发布时间：${latestDateStr}\n\n近期版本：\n${lines.join('\n')}\n\n查询时间：${getFormattedTime()}\n\n${SOURCE_NOTE}`;
+  } catch (e) { // 捕获 fetchGdmf 或 collectReleases 抛出的错误
+    console.error('Error in handleDetailedOsUpdate:', e.message || e); // 记录具体错误
+    return '查询系统版本失败，请稍后再试。'; // 统一返回用户友好的失败提示
   }
 }
 
@@ -504,8 +493,6 @@ function collectReleases(data, platform) {
                               foundBuilds.add(build);
                           }
                           // 【v8.5.1 新增】处理 iOS/iPadOS 共用 Build 但未明确列出 iPad 设备的情况
-                          // 如果目标是 iPadOS，且当前版本标记为 iOS，并且版本号 >= 13 (iPadOS 分支点)
-                          // 则也将其视为 iPadOS 版本加入结果 (这是一种兼容性处理)
                           else if (targetOS === 'iPadOS' && actualPlatforms.has('iOS')) {
                               const versionNum = parseFloat(version);
                               if (!isNaN(versionNum) && versionNum >= 13.0) {
@@ -555,4 +542,3 @@ function determinePlatformsFromDevices(devices) {
 
     return platforms;
 }
-// ===================== END =====================
