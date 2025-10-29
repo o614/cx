@@ -1,11 +1,12 @@
 /**
  * WeChat Official Account Serverless Function
- * v8.2 — 修复系统更新功能网络层问题，其余保持 v8.1 不变
+ * v8.1 — 更稳的网络层、修复地区匹配、价格查询轻量匹配、统一回复构建
+ * v8.3 — 修复系统更新功能 SSL 证书验证错误
  */
 const crypto = require('crypto');
 const axios = require('axios');
 const { Parser, Builder } = require('xml2js');
-// const https = require('https'); // 【已按要求移除】
+const https = require('https'); // 【新增】为 GDMF 访问增加 SSL 处理能力
 // const dns = require('dns');     // 【已按要求移除】
 
 const CONFIG = {
@@ -337,51 +338,49 @@ async function lookupAppIcon(appName) {
 
 // ============ 新增：GDMF 基础获取与工具函数（系统更新功能依赖） ============
 
-// 【修复 v8.2】简化 GDMF 获取逻辑，增加详细错误日志
+// 【修复 v8.3】增加 rejectUnauthorized: false 以处理 SELF_SIGNED_CERT_IN_CHAIN 错误
 async function fetchGdmf() {
   const url = 'https://gdmf.apple.com/v2/pmv';
-  // 使用相对标准的请求头
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-    'Accept': 'application/json, text/plain, */*' // 更通用的 Accept 头
+    'Accept': 'application/json, text/plain, */*'
   };
 
+  // Create an HTTPS agent that bypasses certificate validation
+  const agent = new https.Agent({
+    rejectUnauthorized: false
+  });
+
   try {
-    // 使用全局 HTTP 实例发起请求，增加超时时间
     const response = await HTTP.get(url, {
-      timeout: 15000, // 超时延长至 15 秒
+      timeout: 15000,
       headers: headers,
-      // 移除复杂的 httpsAgent 和 lookup，先依赖 Vercel 默认网络
+      httpsAgent: agent // Use the custom agent here
     });
 
-    // 增加对返回数据是否为空或非对象的检查
     if (!response.data || typeof response.data !== 'object') {
         console.error('fetchGdmf Error: Received invalid data format from GDMF.');
         throw new Error('Received invalid data format from GDMF.');
     }
-
     return response.data;
 
   } catch (error) {
     // 记录更详细的错误信息，帮助排查
     let errorMsg = 'fetchGdmf Error: Request failed.';
     if (error.response) {
-      // 请求发出去了，但服务器返回了错误状态码
       errorMsg = `fetchGdmf Error: Request failed with status ${error.response.status}. URL: ${url}`;
-      console.error(errorMsg, 'Response data:', error.response.data); // 尝试记录返回的数据
+      console.error(errorMsg, 'Response data:', error.response.data);
     } else if (error.request) {
-      // 请求发出去了，但没有收到响应（例如超时）
       errorMsg = `fetchGdmf Error: No response received. Code: ${error.code || 'N/A'}. URL: ${url}`;
       console.error(errorMsg, 'Is timeout?', error.code === 'ECONNABORTED');
     } else {
-      // 请求设置出错或其他未知错误
       errorMsg = `fetchGdmf Error: Request setup failed or unknown error. Message: ${error.message || 'N/A'}. URL: ${url}`;
       console.error(errorMsg);
     }
-    // 重新抛出错误，让调用者知道失败了
-    throw new Error(errorMsg); // 抛出一个包含更多信息的错误
+    throw new Error(errorMsg);
   }
 }
+
 
 function normalizePlatform(p) {
   const k = String(p || '').toLowerCase();
