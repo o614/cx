@@ -312,9 +312,14 @@ async function lookupAppIcon(appName) {
     if (data.resultCount === 0) return '未找到相关应用，请检查名称。';
 
     const app = data.results[0];
-    const highRes = app.artworkUrl512 || String(app.artworkUrl100 || '').replace('100x100bb.jpg', '1024x1024bb.jpg');
-    if (!highRes) return '抱歉，未能获取到该应用的高清图标。';
+    const highRes = String(app.artworkUrl100 || '').replace('100x100bb.jpg', '1024x1024bb.jpg');
+    if (!highRes || highRes === app.artworkUrl100) {
+        const fallbackRes = app.artworkUrl512 || app.artworkUrl100;
+        if (!fallbackRes) return '抱歉，未能获取到该应用的高清图标。';
 
+        const appLink = `<a href="${app.trackViewUrl}">${app.trackName}</a>`;
+        return `您搜索的“${appName}”最匹配的结果是：\n\n${appLink}\n\n这是它的图标链接：\n${fallbackRes}\n\n${SOURCE_NOTE}`;
+    }
     const appLink = `<a href="${app.trackViewUrl}">${app.trackName}</a>`;
     return `您搜索的“${appName}”最匹配的结果是：\n\n${appLink}\n\n这是它的高清图标链接：\n${highRes}\n\n${SOURCE_NOTE}`;
   } catch (e) {
@@ -322,7 +327,6 @@ async function lookupAppIcon(appName) {
     return '查询应用图标失败，请稍后再试。';
   }
 }
-
 async function fetchGdmf() {
   const url = 'https://gdmf.apple.com/v2/pmv';
   const headers = {
@@ -498,4 +502,5 @@ function determinePlatformsFromDevices(devices) {
 
     return platforms;
 }
+
 
