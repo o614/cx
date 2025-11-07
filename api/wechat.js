@@ -60,12 +60,12 @@ async function handlePostRequest(req, res) {
     if (message.MsgType === 'event' && message.Event === 'subscribe') {
       replyContent =
         `恭喜！你发现了果粉秘密基地\n\n` +
-        `› <a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式">付款方式</a>\n获取地址信息\n\n` +
-        `› <a href="weixin://bizmsgmenu?msgmenucontent=查询%20TikTok&msgmenuid=1">查询 TikTok</a>\n全球上架查询\n\n` +
-        `› <a href="weixin://bizmsgmenu?msgmenucontent=榜单%20美国&msgmenuid=3">榜单 美国</a>\n获取地区榜单\n\n` +
-        `› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20YouTube&msgmenuid=2">价格 YouTube</a>\n查询应用价格\n\n` +
-        `› <a href="weixin://bizmsgmenu?msgmenucontent=切换%20美国&msgmenuid=4">切换 美国</a>\n切换商店地区\n\n` +
-        `› <a href="weixin://bizmsgmenu?msgmenucontent=图标%20QQ&msgmenuid=5">图标 QQ</a>\n获取高清图标\n\n更多服务请戳底部菜单栏了解`;
+        `› <a href="weixin://bizmsgmenu?msgmenucontent=付款方式&msgmenuid=付款方式">付款方式</a>\n获取注册地址信息\n\n` +
+        `› <a href="weixin://bizmsgmenu?msgmenucontent=查询%20TikTok&msgmenuid=1">查询 TikTok</a>\n全区应用上架查询\n\n` +
+        `› <a href="weixin://bizmsgmenu?msgmenucontent=榜单%20美国&msgmenuid=3">榜单 美国</a>\n获取免费付费榜单\n\n` +
+        `› <a href="weixin://bizmsgmenu?msgmenucontent=价格%20YouTube&msgmenuid=2">价格 YouTube</a>\n查询不同应用价格\n\n` +
+        `› <a href="weixin://bizmsgmenu?msgmenucontent=切换%20美国&msgmenuid=4">切换 美国</a>\n切换不同商店地区\n\n` +
+        `› <a href="weixin://bizmsgmenu?msgmenucontent=图标%20QQ&msgmenuid=5">图标 QQ</a>\n获取高清应用图标\n\n更多服务请戳底部菜单栏了解`;
     } else if (message.MsgType === 'text' && typeof message.Content === 'string') {
       const content = message.Content.trim();
       const chartV2Match = content.match(/^榜单\s+(.+)$/i);
@@ -498,3 +498,4 @@ function determinePlatformsFromDevices(devices) {
 
     return platforms;
 }
+
