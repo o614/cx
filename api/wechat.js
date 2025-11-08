@@ -68,14 +68,17 @@ async function handlePostRequest(req, res) {
         `› <a href="weixin://bizmsgmenu?msgmenucontent=图标%20QQ&msgmenuid=5">图标 QQ</a>\n获取高清应用图标\n\n更多服务请戳底部菜单栏了解`;
     } else if (message.MsgType === 'text' && typeof message.Content === 'string') {
       const content = message.Content.trim();
-      const chartV2Match = content.match(/^榜单\s+(.+)$/i);
-      const chartMatch = content.match(/^(.*?)(免费榜|付费榜)$/);
-      const priceMatchAdvanced = content.match(/^价格\s+(.+?)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
-      const priceMatchSimple = content.match(/^价格\s+(.+)$/i);
-      const switchRegionMatch = content.match(/^(切换|地区)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i);
-      const availabilityMatch = content.match(/^查询\s+(.+)$/i);
-      const osAllMatch = /^系统更新$/i.test(content);
-      const osUpdateMatch = content.match(/^更新\s*(iOS|iPadOS|macOS|watchOS|tvOS|visionOS)?$/i);
+      
+      // 【优化 v9.0】修改 \s+ (一个或多个空格) 为 \s* (零个或多个空格)
+      const chartV2Match = content.match(/^榜单\s*(.+)$/i); // \s+ -> \s*
+      const chartMatch = content.match(/^(.*?)(免费榜|付费榜)$/); // 此处逻辑不变，(.*?)已能处理空格
+      const priceMatchAdvanced = content.match(/^价格\s*(.+?)\s+([a-zA-Z\u4e00-\u9fa5]+)$/i); // 第一个 \s+ -> \s*
+      const priceMatchSimple = content.match(/^价格\s*(.+)$/i); // \s+ -> \s*
+      const switchRegionMatch = content.match(/^(切换|地区)\s*([a-zA-Z\u4e00-\u9fa5]+)$/i); // \s+ -> \s*
+      const availabilityMatch = content.match(/^查询\s*(.+)$/i); // \s+ -> \s*
+      const osAllMatch = /^系统更新$/i.test(content); // 保持不变
+      const osUpdateMatch = content.match(/^更新\s*(iOS|iPadOS|macOS|watchOS|tvOS|visionOS)?$/i); // 保持不变 (已是 s*)
+      const iconMatch = content.match(/^图标\s*(.+)$/i); // 【优化 v9.0】新增图标指令的正则匹配
 
       if (chartV2Match && isSupportedRegion(chartV2Match[1])) {
         replyContent = await handleChartQuery(chartV2Match[1].trim(), '免费榜');
@@ -94,8 +97,9 @@ async function handlePostRequest(req, res) {
         replyContent = handleRegionSwitch(switchRegionMatch[2].trim());
       } else if (availabilityMatch) {
         replyContent = await handleAvailabilityQuery(availabilityMatch[1].trim());
-      } else if (content.startsWith('图标 ')) {
-        const appName = content.substring(3).trim();
+      // 【优化 v9.0】将图标查询从 startsWith 改为正则匹配
+      } else if (iconMatch) { 
+        const appName = iconMatch[1].trim();
         if (appName) replyContent = await lookupAppIcon(appName);
       }
     }
@@ -502,5 +506,6 @@ function determinePlatformsFromDevices(devices) {
 
     return platforms;
 }
+
 
 
